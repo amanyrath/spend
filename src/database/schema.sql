@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     type TEXT,
     subtype TEXT,
     balance REAL,
-    limit REAL,
+    "limit" REAL,
     mask TEXT,
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );

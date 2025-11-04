@@ -178,9 +178,9 @@ def detect_credit_utilization(user_id: str, window_days: int = 30) -> Dict[str, 
     
     # Get all credit accounts for user
     query = """
-        SELECT account_id, balance, limit, type, subtype
+        SELECT account_id, balance, "limit", type, subtype
         FROM accounts
-        WHERE user_id = ? AND type = 'credit' AND limit > 0
+        WHERE user_id = ? AND type = 'credit' AND "limit" > 0
     """
     credit_accounts = db.fetch_all(query, (user_id,))
     

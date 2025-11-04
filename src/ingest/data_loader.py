@@ -6,9 +6,14 @@ It handles idempotent operations, so it can be run multiple times safely.
 
 import json
 import csv
+import sys
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
+
+# Add project root to path so imports work when run as script
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from src.database.db import get_db_connection, init_schema
 
@@ -81,7 +86,7 @@ def load_data_to_db(data_dir: str = "data", db_path: Optional[str] = None) -> No
                     cursor.execute(
                         """
                         INSERT OR IGNORE INTO accounts 
-                        (account_id, user_id, type, subtype, balance, limit, mask)
+                        (account_id, user_id, type, subtype, balance, "limit", mask)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         (

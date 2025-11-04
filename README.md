@@ -18,12 +18,18 @@ SpendSense is a local-first financial education system that analyzes synthetic t
 
 ### Prerequisites
 
-- Python 3.11 or higher
+- Python 3.11 or 3.12 (Python 3.14 is not yet fully supported by pandas)
 - pip
+
+**Important:** If you're using Python 3.14, pandas 2.1.3 won't compile. Either:
+- Use Python 3.11 or 3.12 instead (recommended)
+- Or update pandas to 2.2.0+ in requirements.txt
 
 ### Installation
 
-1. Clone the repository:
+**Yes, you need a virtual environment.** It's recommended to isolate project dependencies.
+
+1. Clone the repository (if not already done):
 ```bash
 git clone <repository-url>
 cd spend
@@ -31,13 +37,20 @@ cd spend
 
 2. Create a virtual environment:
 ```bash
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
 3. Install dependencies:
 ```bash
 pip install -r requirements.txt
+```
+
+**Note:** After creating the venv, always activate it before running any commands:
+```bash
+source venv/bin/activate  # macOS/Linux
+# or
+venv\Scripts\activate  # Windows
 ```
 
 ## Project Structure
@@ -62,10 +75,42 @@ spendsense/
 
 ## Quick Start
 
-1. Generate synthetic data:
+**Make sure your virtual environment is activated:**
 ```bash
-python src/ingest/data_generator.py
-python src/ingest/data_loader.py
+source venv/bin/activate  # macOS/Linux
+```
+
+### Phase 1.2: Synthetic Data Generation
+
+1. Generate synthetic data (creates CSV/JSON files in `data/` directory):
+```bash
+python3 src/ingest/data_generator.py
+```
+
+Expected output:
+- `data/users.json` - 75 user profiles
+- `data/accounts.csv` - Bank accounts
+- `data/transactions.csv` - Transaction history
+- `data/liabilities.csv` - Credit card liabilities
+
+2. Load data into SQLite database:
+```bash
+python3 src/ingest/data_loader.py
+```
+
+**Note:** Make sure you're in the project root directory (`/Users/alexismanyrath/Code/spend`) when running these commands. The scripts will automatically add the project root to the Python path.
+
+Expected output:
+- `data/spendsense.db` - SQLite database with all data loaded
+- Verification messages showing counts of inserted records
+
+**Verify it worked:**
+```bash
+# Check that files were created
+ls -lh data/
+
+# Check database exists
+ls -lh data/spendsense.db
 ```
 
 2. Compute features:

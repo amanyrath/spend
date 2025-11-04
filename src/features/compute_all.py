@@ -16,6 +16,11 @@ from src.features.signal_detection import compute_all_features
 
 def compute_all_users():
     """Compute features for all users."""
+    # Ensure database schema is initialized
+    print("Ensuring database schema is initialized...")
+    db.init_schema()
+    print("Schema check complete.\n")
+    
     # Get all users
     users_query = "SELECT user_id FROM users"
     users = db.fetch_all(users_query)

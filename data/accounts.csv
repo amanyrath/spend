@@ -1,0 +1,187 @@
+account_id,user_id,type,subtype,balance,limit,mask
+acc_user_001_01,user_001,depository,checking,3949.16,,8953
+acc_user_001_02,user_001,depository,savings,19.77,,8744
+acc_user_001_03,user_001,credit,credit card,5916.41,9367.93,2545
+acc_user_002_01,user_002,depository,checking,2006.86,,8062
+acc_user_002_02,user_002,depository,savings,47.66,,1887
+acc_user_003_01,user_003,depository,checking,15537.92,,2612
+acc_user_003_02,user_003,depository,savings,34.05,,2790
+acc_user_003_03,user_003,credit,credit card,13322.65,17899.96,7912
+acc_user_004_01,user_004,depository,checking,6828.31,,8579
+acc_user_004_02,user_004,depository,savings,5572.6,,8260
+acc_user_005_01,user_005,depository,checking,7723.32,,2604
+acc_user_005_02,user_005,depository,savings,8405.88,,1241
+acc_user_006_01,user_006,depository,checking,7331.3,,4872
+acc_user_006_02,user_006,depository,savings,34.37,,4502
+acc_user_007_01,user_007,depository,checking,5640.55,,3697
+acc_user_007_02,user_007,depository,savings,24883.14,,5345
+acc_user_008_01,user_008,depository,checking,11983.35,,5673
+acc_user_008_02,user_008,depository,savings,43422.83,,8973
+acc_user_008_03,user_008,credit,credit card,6931.98,25177.5,9883
+acc_user_009_01,user_009,depository,checking,2430.26,,6138
+acc_user_009_02,user_009,depository,savings,4112.86,,9238
+acc_user_010_01,user_010,depository,checking,10851.67,,1931
+acc_user_010_02,user_010,credit,credit card,12863.89,21993.78,4853
+acc_user_011_01,user_011,depository,checking,13429.48,,5033
+acc_user_011_02,user_011,depository,savings,11110.62,,2343
+acc_user_011_03,user_011,credit,credit card,15087.11,29814.73,5272
+acc_user_012_01,user_012,depository,checking,4044.64,,6147
+acc_user_012_02,user_012,depository,savings,12.49,,5915
+acc_user_012_03,user_012,credit,credit card,16166.9,17283.08,1152
+acc_user_012_04,user_012,credit,credit card,8403.26,11535.65,2638
+acc_user_013_01,user_013,depository,checking,6203.56,,4492
+acc_user_013_02,user_013,depository,savings,11202.71,,6718
+acc_user_014_01,user_014,depository,checking,5027.61,,7054
+acc_user_014_02,user_014,depository,savings,1988.13,,9900
+acc_user_015_01,user_015,depository,checking,16486.31,,9666
+acc_user_015_02,user_015,depository,savings,60.44,,5905
+acc_user_016_01,user_016,depository,checking,8073.35,,3200
+acc_user_016_02,user_016,depository,savings,60297.99,,3546
+acc_user_016_03,user_016,credit,credit card,6062.77,35998.22,4335
+acc_user_017_01,user_017,depository,checking,9545.66,,5325
+acc_user_017_02,user_017,depository,savings,24182.99,,1832
+acc_user_017_03,user_017,credit,credit card,3096.8,11620.22,1058
+acc_user_018_01,user_018,depository,checking,7602.38,,3143
+acc_user_018_02,user_018,depository,savings,4852.71,,8239
+acc_user_018_03,user_018,credit,credit card,4005.45,9296.17,2232
+acc_user_019_01,user_019,depository,checking,19767.02,,3442
+acc_user_019_02,user_019,depository,savings,22907.21,,3426
+acc_user_019_03,user_019,credit,credit card,2179.37,21391.48,1653
+acc_user_020_01,user_020,depository,checking,4972.01,,4441
+acc_user_020_02,user_020,depository,savings,4648.79,,6794
+acc_user_021_01,user_021,depository,checking,10495.34,,7658
+acc_user_022_01,user_022,depository,checking,16780.46,,4878
+acc_user_023_01,user_023,depository,checking,5999.97,,7755
+acc_user_023_02,user_023,depository,savings,3268.68,,6442
+acc_user_024_01,user_024,depository,checking,5935.23,,5065
+acc_user_024_02,user_024,depository,savings,93.63,,2771
+acc_user_024_03,user_024,credit,credit card,9164.36,12372.42,4269
+acc_user_025_01,user_025,depository,checking,4648.41,,8541
+acc_user_025_02,user_025,depository,savings,30.27,,4728
+acc_user_025_03,user_025,credit,credit card,4590.3,5811.1,5564
+acc_user_026_01,user_026,depository,checking,12726.17,,5573
+acc_user_026_02,user_026,depository,savings,13130.58,,9785
+acc_user_026_03,user_026,credit,credit card,8919.29,23411.03,5279
+acc_user_027_01,user_027,depository,checking,2888.85,,5349
+acc_user_027_02,user_027,depository,savings,31482.47,,6663
+acc_user_028_01,user_028,depository,checking,3902.28,,9379
+acc_user_028_02,user_028,depository,savings,8184.61,,4114
+acc_user_028_03,user_028,credit,credit card,2184.25,4841.32,9821
+acc_user_028_04,user_028,credit,credit card,5317.04,11453.17,4228
+acc_user_029_01,user_029,depository,checking,4679.28,,2146
+acc_user_030_01,user_030,depository,checking,14427.8,,3041
+acc_user_030_02,user_030,credit,credit card,2861.87,21923.7,7592
+acc_user_031_01,user_031,depository,checking,4755.05,,3085
+acc_user_031_02,user_031,depository,savings,91.47,,7211
+acc_user_032_01,user_032,depository,checking,22721.62,,5930
+acc_user_032_02,user_032,depository,savings,10701.45,,5978
+acc_user_032_03,user_032,credit,credit card,29857.06,31762.14,6279
+acc_user_033_01,user_033,depository,checking,4626.07,,8244
+acc_user_033_02,user_033,depository,savings,6832.9,,3780
+acc_user_034_01,user_034,depository,checking,10963.83,,6491
+acc_user_034_02,user_034,depository,savings,82.67,,4848
+acc_user_035_01,user_035,depository,checking,2411.49,,4262
+acc_user_035_02,user_035,depository,savings,16629.97,,8784
+acc_user_036_01,user_036,depository,checking,11751.21,,8461
+acc_user_036_02,user_036,depository,savings,22029.03,,4185
+acc_user_037_01,user_037,depository,checking,7000.69,,7547
+acc_user_037_02,user_037,depository,savings,3760.71,,1090
+acc_user_038_01,user_038,depository,checking,11001.07,,2746
+acc_user_038_02,user_038,credit,credit card,5804.34,17633.24,8611
+acc_user_038_03,user_038,credit,credit card,2641.27,8112.75,5082
+acc_user_039_01,user_039,depository,checking,17052.36,,2988
+acc_user_039_02,user_039,depository,savings,60.13,,9702
+acc_user_040_01,user_040,depository,checking,11555.25,,8251
+acc_user_040_02,user_040,depository,savings,51.71,,9270
+acc_user_040_03,user_040,credit,credit card,13527.8,18829.36,3607
+acc_user_040_04,user_040,credit,credit card,15362.49,24756.21,8777
+acc_user_041_01,user_041,depository,checking,10773.36,,5050
+acc_user_041_02,user_041,credit,credit card,9231.05,21664.29,4919
+acc_user_041_03,user_041,credit,credit card,6221.36,17043.62,2269
+acc_user_042_01,user_042,depository,checking,5735.98,,4841
+acc_user_042_02,user_042,depository,savings,4764.92,,9849
+acc_user_042_03,user_042,credit,credit card,6321.97,7741.22,3503
+acc_user_043_01,user_043,depository,checking,5524.2,,2052
+acc_user_043_02,user_043,depository,savings,22904.46,,8633
+acc_user_043_03,user_043,credit,credit card,1556.81,7821.96,1320
+acc_user_044_01,user_044,depository,checking,20034.16,,7232
+acc_user_044_02,user_044,depository,savings,7420.42,,5892
+acc_user_045_01,user_045,depository,checking,14946.32,,7865
+acc_user_045_02,user_045,depository,savings,65.31,,4613
+acc_user_045_03,user_045,credit,credit card,14044.5,19861.08,7371
+acc_user_046_01,user_046,depository,checking,7922.76,,7624
+acc_user_047_01,user_047,depository,checking,10568.94,,9751
+acc_user_047_02,user_047,depository,savings,11342.27,,1444
+acc_user_047_03,user_047,credit,credit card,1345.96,18448.67,3977
+acc_user_048_01,user_048,depository,checking,2748.14,,7211
+acc_user_048_02,user_048,depository,savings,39149.57,,6529
+acc_user_049_01,user_049,depository,checking,7101.0,,7906
+acc_user_049_02,user_049,depository,savings,12964.47,,1317
+acc_user_050_01,user_050,depository,checking,7089.97,,6733
+acc_user_050_02,user_050,depository,savings,19907.98,,1659
+acc_user_051_01,user_051,depository,checking,24044.8,,4266
+acc_user_052_01,user_052,depository,checking,4072.7,,8758
+acc_user_052_02,user_052,depository,savings,3619.5,,4571
+acc_user_052_03,user_052,credit,credit card,5147.66,9900.71,2876
+acc_user_053_01,user_053,depository,checking,12760.44,,3683
+acc_user_053_02,user_053,credit,credit card,4778.78,14919.55,7149
+acc_user_054_01,user_054,depository,checking,5476.37,,4249
+acc_user_054_02,user_054,depository,savings,9837.66,,4978
+acc_user_054_03,user_054,credit,credit card,6193.57,16207.84,2983
+acc_user_054_04,user_054,credit,credit card,6468.88,15558.87,1672
+acc_user_055_01,user_055,depository,checking,7260.31,,8018
+acc_user_055_02,user_055,depository,savings,43.42,,6590
+acc_user_055_03,user_055,credit,credit card,14893.68,16902.35,8102
+acc_user_056_01,user_056,depository,checking,13710.73,,8532
+acc_user_056_02,user_056,credit,credit card,9734.11,24841.83,5425
+acc_user_056_03,user_056,credit,credit card,6150.15,18916.28,9817
+acc_user_057_01,user_057,depository,checking,5625.88,,8616
+acc_user_057_02,user_057,depository,savings,23943.52,,5397
+acc_user_057_03,user_057,credit,credit card,2309.84,11655.16,5569
+acc_user_058_01,user_058,depository,checking,6362.47,,4995
+acc_user_058_02,user_058,credit,credit card,2568.96,7008.0,9098
+acc_user_059_01,user_059,depository,checking,17786.94,,3979
+acc_user_059_02,user_059,depository,savings,11915.46,,5232
+acc_user_059_03,user_059,credit,credit card,11793.64,28865.17,5526
+acc_user_059_04,user_059,credit,credit card,7834.19,25371.29,9464
+acc_user_060_01,user_060,depository,checking,7783.04,,2402
+acc_user_060_02,user_060,depository,savings,7666.32,,4937
+acc_user_061_01,user_061,depository,checking,5621.31,,9041
+acc_user_061_02,user_061,depository,savings,25.79,,5820
+acc_user_061_03,user_061,credit,credit card,6529.39,7404.84,7046
+acc_user_062_01,user_062,depository,checking,4784.61,,9698
+acc_user_062_02,user_062,depository,savings,2707.79,,6419
+acc_user_062_03,user_062,credit,credit card,4360.91,7655.66,4777
+acc_user_063_01,user_063,depository,checking,2586.26,,4155
+acc_user_063_02,user_063,depository,savings,3361.1,,4033
+acc_user_063_03,user_063,credit,credit card,3096.65,7077.64,9595
+acc_user_063_04,user_063,credit,credit card,3669.29,9997.03,2647
+acc_user_064_01,user_064,depository,checking,9818.85,,5853
+acc_user_064_02,user_064,depository,savings,34060.51,,1231
+acc_user_065_01,user_065,depository,checking,7343.14,,1745
+acc_user_065_02,user_065,credit,credit card,9714.94,15998.94,9042
+acc_user_066_01,user_066,depository,checking,2597.6,,1200
+acc_user_066_02,user_066,depository,savings,34.26,,8216
+acc_user_066_03,user_066,credit,credit card,5863.28,7174.28,8827
+acc_user_066_04,user_066,credit,credit card,5481.81,5854.83,2070
+acc_user_067_01,user_067,depository,checking,5797.27,,2213
+acc_user_067_02,user_067,depository,savings,4646.65,,3485
+acc_user_067_03,user_067,credit,credit card,3915.68,10157.59,5066
+acc_user_068_01,user_068,depository,checking,5309.55,,7818
+acc_user_068_02,user_068,depository,savings,60716.18,,4697
+acc_user_069_01,user_069,depository,checking,7486.74,,8253
+acc_user_069_02,user_069,depository,savings,37546.9,,8025
+acc_user_069_03,user_069,credit,credit card,947.96,18623.82,2625
+acc_user_070_01,user_070,depository,checking,5982.23,,4404
+acc_user_070_02,user_070,depository,savings,16.48,,2330
+acc_user_070_03,user_070,credit,credit card,2668.05,4297.11,1043
+acc_user_071_01,user_071,depository,checking,8211.83,,8699
+acc_user_071_02,user_071,depository,savings,15167.63,,5632
+acc_user_072_01,user_072,depository,checking,3662.82,,4824
+acc_user_073_01,user_073,depository,checking,3825.06,,4241
+acc_user_073_02,user_073,depository,savings,11896.93,,3441
+acc_user_074_01,user_074,depository,checking,4499.07,,2169
+acc_user_074_02,user_074,depository,savings,13193.23,,5728
+acc_user_074_03,user_074,credit,credit card,1024.89,4990.03,7594
+acc_user_075_01,user_075,depository,checking,13349.45,,9199
+acc_user_075_02,user_075,depository,savings,6561.18,,1653
