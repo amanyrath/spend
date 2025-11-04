@@ -10,12 +10,14 @@ import sys
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
+import pandas as pd
 
 # Add project root to path so imports work when run as script
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.database.db import get_db_connection, init_schema
+from src.database.firestore import store_user, db
 
 
 def load_data_to_db(data_dir: str = "data", db_path: Optional[str] = None) -> None:
@@ -190,6 +192,68 @@ def load_data_to_db(data_dir: str = "data", db_path: Optional[str] = None) -> No
         print("\nData loading complete!")
 
 
+def load_users_to_firestore():
+    """Load users from JSON to Firestore"""
+    with open('data/users.json', 'r') as f:
+        users = json.load(f)
+    
+    for user in users:
+        store_user(user)
+        print(f"Loaded user: {user['user_id']}")
+
+
+def load_accounts_to_firestore():
+    """Load accounts from CSV to Firestore"""
+    accounts_df = pd.read_csv('data/accounts.csv')
+    
+    for _, account in accounts_df.iterrows():
+        user_id = account['user_id']
+        account_data = account.to_dict()
+        
+        db.collection('users').document(user_id)\
+          .collection('accounts').document(account['account_id'])\
+          .set(account_data)
+        
+        print(f"Loaded account: {account['account_id']}")
+
+
+def load_transactions_to_firestore():
+    """Load transactions from CSV to Firestore"""
+    transactions_df = pd.read_csv('data/transactions.csv')
+    
+    # Batch write for efficiency (max 500 per batch)
+    batch = db.batch()
+    count = 0
+    
+    for _, txn in transactions_df.iterrows():
+        user_id = txn['user_id']
+        txn_data = txn.to_dict()
+        
+        txn_ref = db.collection('users').document(user_id)\
+                    .collection('transactions').document(txn['transaction_id'])
+        batch.set(txn_ref, txn_data)
+        count += 1
+        
+        # Commit batch every 500 operations
+        if count % 500 == 0:
+            batch.commit()
+            batch = db.batch()
+            print(f"Loaded {count} transactions...")
+    
+    # Commit remaining
+    batch.commit()
+    print(f"Total transactions loaded: {count}")
+
+
 if __name__ == "__main__":
-    load_data_to_db()
+    print("Loading users...")
+    load_users_to_firestore()
+    
+    print("Loading accounts...")
+    load_accounts_to_firestore()
+    
+    print("Loading transactions...")
+    load_transactions_to_firestore()
+    
+    print("Data loading complete!")
 

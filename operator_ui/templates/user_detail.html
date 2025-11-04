@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpendSense - User Detail</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .section-card {
+            transition: transform 0.2s;
+        }
+        .section-card:hover {
+            transform: translateY(-2px);
+        }
+        .signal-item {
+            border-left: 3px solid #3b82f6;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="mb-6">
+            <a href="user_list.html" class="text-blue-600 hover:text-blue-800 mb-4 inline-block">
+                ← Back to User List
+            </a>
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">User Detail</h1>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="mt-4 text-gray-600">Loading user data...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+            <p id="errorMessage"></p>
+        </div>
+
+        <!-- User Profile Section -->
+        <div id="profileSection" class="hidden mb-6">
+            <div class="bg-white rounded-lg shadow p-6 section-card">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">Profile</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <div class="text-sm text-gray-600">User ID</div>
+                        <div class="text-lg font-semibold text-gray-900" id="userId"></div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-gray-600">Name</div>
+                        <div class="text-lg font-semibold text-gray-900" id="userName"></div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-gray-600">Created At</div>
+                        <div class="text-lg text-gray-900" id="createdAt"></div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-gray-600">Persona (30d)</div>
+                        <div class="mt-1">
+                            <span id="persona30d" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full"></span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-gray-600">Persona (180d)</div>
+                        <div class="mt-1">
+                            <span id="persona180d" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signals Section -->
+        <div id="signalsSection" class="hidden mb-6">
+            <div class="bg-white rounded-lg shadow p-6 section-card">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">Behavioral Signals</h2>
+                <div id="signalsContainer" class="space-y-4">
+                    <!-- Signal items will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Recommendations Section -->
+        <div id="recommendationsSection" class="hidden mb-6">
+            <div class="bg-white rounded-lg shadow p-6 section-card">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">Recommendations</h2>
+                <div id="recommendationsContainer" class="space-y-4">
+                    <!-- Recommendations will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Decision Trace Modal -->
+    <div id="traceModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-900">Decision Trace</h3>
+                <button onclick="closeTraceModal()" class="text-gray-400 hover:text-gray-600">
+                    <span class="text-2xl">&times;</span>
+                </button>
+            </div>
+            <div class="mb-4">
+                <button onclick="copyTraceToClipboard()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    Copy to Clipboard
+                </button>
+            </div>
+            <div class="bg-gray-50 rounded p-4 overflow-auto max-h-96">
+                <pre id="traceContent" class="text-sm text-gray-800"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        let currentUserId = null;
+        let currentTrace = null;
+
+        // Get user_id from URL
+        function getUserIdFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('user_id');
+        }
+
+        // Fetch all user data
+        async function fetchUserData() {
+            const userId = getUserIdFromUrl();
+            if (!userId) {
+                showError('User ID not provided');
+                return;
+            }
+
+            currentUserId = userId;
+
+            try {
+                // Fetch user detail
+                const userResponse = await fetch(`${API_BASE_URL}/api/users/${userId}`);
+                if (!userResponse.ok) {
+                    if (userResponse.status === 404) {
+                        throw new Error('User not found');
+                    }
+                    throw new Error(`HTTP error! status: ${userResponse.status}`);
+                }
+                const userData = await userResponse.json();
+
+                // Fetch signals
+                const signalsResponse = await fetch(`${API_BASE_URL}/api/users/${userId}/signals`);
+                const signalsData = signalsResponse.ok ? await signalsResponse.json() : { signals: {} };
+
+                // Fetch recommendations
+                const recsResponse = await fetch(`${API_BASE_URL}/api/users/${userId}/recommendations`);
+                const recsData = recsResponse.ok ? await recsResponse.json() : { recommendations: [] };
+
+                renderProfile(userData);
+                renderSignals(signalsData.signals || {});
+                renderRecommendations(recsData.recommendations || []);
+
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('profileSection').classList.remove('hidden');
+                document.getElementById('signalsSection').classList.remove('hidden');
+                document.getElementById('recommendationsSection').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('errorState').classList.remove('hidden');
+                document.getElementById('errorMessage').textContent = `Error loading user data: ${error.message}`;
+            }
+        }
+
+        // Render profile section
+        function renderProfile(userData) {
+            document.getElementById('userId').textContent = userData.user_id;
+            document.getElementById('userName').textContent = userData.name || 'N/A';
+            document.getElementById('createdAt').textContent = userData.created_at || 'N/A';
+
+            const persona30d = userData.personas?.['30d']?.persona || null;
+            const persona180d = userData.personas?.['180d']?.persona || null;
+
+            renderPersonaBadge('persona30d', persona30d);
+            renderPersonaBadge('persona180d', persona180d);
+        }
+
+        // Render persona badge
+        function renderPersonaBadge(elementId, persona) {
+            const element = document.getElementById(elementId);
+            if (persona) {
+                const displayName = persona.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const colorClass = getPersonaBadgeClass(persona);
+                element.className = `px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full ${colorClass}`;
+                element.textContent = displayName;
+            } else {
+                element.className = 'px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-gray-100 text-gray-800';
+                element.textContent = 'None';
+            }
+        }
+
+        // Render signals section
+        function renderSignals(signals) {
+            const container = document.getElementById('signalsContainer');
+            
+            if (Object.keys(signals).length === 0) {
+                container.innerHTML = '<p class="text-gray-600">No signals available.</p>';
+                return;
+            }
+
+            const signalTypes = {
+                'subscriptions': 'Subscriptions',
+                'credit_utilization': 'Credit Utilization',
+                'savings_behavior': 'Savings Behavior',
+                'income_stability': 'Income Stability'
+            };
+
+            container.innerHTML = Object.entries(signals).map(([key, value]) => {
+                const title = signalTypes[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                return `
+                    <div class="signal-item bg-gray-50 p-4 rounded-lg pl-6">
+                        <h3 class="font-semibold text-gray-900 mb-2">${escapeHtml(title)}</h3>
+                        <pre class="text-sm text-gray-700 whitespace-pre-wrap">${escapeHtml(JSON.stringify(value, null, 2))}</pre>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Render recommendations section
+        function renderRecommendations(recommendations) {
+            const container = document.getElementById('recommendationsContainer');
+            
+            if (recommendations.length === 0) {
+                container.innerHTML = '<p class="text-gray-600">No recommendations available.</p>';
+                return;
+            }
+
+            container.innerHTML = recommendations.map((rec, index) => {
+                const typeBadge = rec.type === 'education' 
+                    ? '<span class="px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-800">Education</span>'
+                    : '<span class="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-800">Partner Offer</span>';
+                
+                return `
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="font-semibold text-gray-900">${escapeHtml(rec.title)}</h3>
+                                <div class="mt-1">${typeBadge}</div>
+                            </div>
+                            ${rec.decision_trace ? `
+                                <button onclick="showTraceModal(${index})" 
+                                        class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+                                    View Trace
+                                </button>
+                            ` : ''}
+                        </div>
+                        <div class="mt-3">
+                            <div class="text-sm font-medium text-gray-700 mb-1">Rationale:</div>
+                            <p class="text-sm text-gray-600">${escapeHtml(rec.rationale || 'No rationale provided')}</p>
+                        </div>
+                        <div class="mt-2 text-xs text-gray-500">
+                            Content ID: ${escapeHtml(rec.content_id)} | 
+                            Shown: ${escapeHtml(rec.shown_at || 'N/A')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Store recommendations for modal access
+            window.recommendationsData = recommendations;
+        }
+
+        // Show trace modal
+        function showTraceModal(index) {
+            const rec = window.recommendationsData[index];
+            if (!rec || !rec.decision_trace) {
+                alert('No decision trace available');
+                return;
+            }
+
+            currentTrace = rec.decision_trace;
+            const traceJson = JSON.stringify(currentTrace, null, 2);
+            document.getElementById('traceContent').textContent = traceJson;
+            document.getElementById('traceModal').classList.remove('hidden');
+        }
+
+        // Close trace modal
+        function closeTraceModal() {
+            document.getElementById('traceModal').classList.add('hidden');
+            currentTrace = null;
+        }
+
+        // Copy trace to clipboard
+        function copyTraceToClipboard() {
+            if (!currentTrace) return;
+            
+            const traceJson = JSON.stringify(currentTrace, null, 2);
+            navigator.clipboard.writeText(traceJson).then(() => {
+                alert('Decision trace copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy to clipboard');
+            });
+        }
+
+        // Get persona badge color class
+        function getPersonaBadgeClass(persona) {
+            const colors = {
+                'high_utilization': 'bg-red-100 text-red-800',
+                'variable_income': 'bg-yellow-100 text-yellow-800',
+                'subscription_heavy': 'bg-purple-100 text-purple-800',
+                'savings_builder': 'bg-green-100 text-green-800',
+                'general_wellness': 'bg-blue-100 text-blue-800'
+            };
+            return colors[persona] || 'bg-gray-100 text-gray-800';
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modal on outside click
+        window.onclick = function(event) {
+            const modal = document.getElementById('traceModal');
+            if (event.target === modal) {
+                closeTraceModal();
+            }
+        }
+
+        // Load data on page load
+        fetchUserData();
+    </script>
+</body>
+</html>
+

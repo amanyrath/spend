@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpendSense - User List</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .search-input {
+            transition: all 0.2s;
+        }
+        .table-row:hover {
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">SpendSense Operator View</h1>
+            <p class="text-gray-600">User List</p>
+        </div>
+
+        <!-- Search and Filter -->
+        <div class="mb-6 flex gap-4">
+            <div class="flex-1">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="Search by name or user ID..." 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent search-input"
+                >
+            </div>
+            <select id="personaFilter" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                <option value="">All Personas</option>
+                <option value="high_utilization">High Utilization</option>
+                <option value="variable_income">Variable Income</option>
+                <option value="subscription_heavy">Subscription Heavy</option>
+                <option value="savings_builder">Savings Builder</option>
+                <option value="general_wellness">General Wellness</option>
+            </select>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="mt-4 text-gray-600">Loading users...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+            <p id="errorMessage"></p>
+        </div>
+
+        <!-- Summary Stats -->
+        <div id="summaryStats" class="hidden grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600">Total Users</div>
+                <div class="text-2xl font-bold text-gray-900" id="totalUsers">0</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600">Users with Personas</div>
+                <div class="text-2xl font-bold text-gray-900" id="usersWithPersonas">0</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600">Avg Behaviors</div>
+                <div class="text-2xl font-bold text-gray-900" id="avgBehaviors">0</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="text-sm text-gray-600">Avg Recommendations</div>
+                <div class="text-2xl font-bold text-gray-900" id="avgRecommendations">0</div>
+            </div>
+        </div>
+
+        <!-- User Table -->
+        <div id="tableContainer" class="hidden bg-white rounded-lg shadow overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('name')">
+                                Name
+                                <span id="sort-name" class="ml-1">↕</span>
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('persona')">
+                                Persona (30d)
+                                <span id="sort-persona" class="ml-1">↕</span>
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('behaviors')">
+                                # Behaviors
+                                <span id="sort-behaviors" class="ml-1">↕</span>
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('recommendations')">
+                                # Recommendations
+                                <span id="sort-recommendations" class="ml-1">↕</span>
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Table rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden text-center py-12">
+            <p class="text-gray-600">No users found.</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        let allUsers = [];
+        let filteredUsers = [];
+        let sortColumn = null;
+        let sortDirection = 'asc';
+
+        // Fetch users from API
+        async function fetchUsers() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/users`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                allUsers = await response.json();
+                filteredUsers = [...allUsers];
+                renderTable();
+                updateSummaryStats();
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('tableContainer').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error fetching users:', error);
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('errorState').classList.remove('hidden');
+                document.getElementById('errorMessage').textContent = `Error loading users: ${error.message}`;
+            }
+        }
+
+        // Render table
+        function renderTable() {
+            const tbody = document.getElementById('userTableBody');
+            
+            if (filteredUsers.length === 0) {
+                tbody.innerHTML = '';
+                document.getElementById('tableContainer').classList.add('hidden');
+                document.getElementById('emptyState').classList.remove('hidden');
+                return;
+            }
+
+            document.getElementById('emptyState').classList.add('hidden');
+            
+            tbody.innerHTML = filteredUsers.map(user => {
+                const personaDisplay = user.persona_30d 
+                    ? user.persona_30d.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                    : 'None';
+                
+                return `
+                    <tr class="table-row">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900">${escapeHtml(user.name)}</div>
+                            <div class="text-sm text-gray-500">${escapeHtml(user.user_id)}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                getPersonaBadgeClass(user.persona_30d)
+                            }">
+                                ${escapeHtml(personaDisplay)}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${user.behavior_count}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${user.recommendation_count}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <a href="user_detail.html?user_id=${encodeURIComponent(user.user_id)}" 
+                               class="text-blue-600 hover:text-blue-900">
+                                View Details
+                            </a>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Update summary statistics
+        function updateSummaryStats() {
+            const usersWithPersonas = allUsers.filter(u => u.persona_30d).length;
+            const totalBehaviors = allUsers.reduce((sum, u) => sum + u.behavior_count, 0);
+            const totalRecommendations = allUsers.reduce((sum, u) => sum + u.recommendation_count, 0);
+            
+            document.getElementById('totalUsers').textContent = allUsers.length;
+            document.getElementById('usersWithPersonas').textContent = usersWithPersonas;
+            document.getElementById('avgBehaviors').textContent = allUsers.length > 0 
+                ? (totalBehaviors / allUsers.length).toFixed(1) 
+                : '0';
+            document.getElementById('avgRecommendations').textContent = allUsers.length > 0 
+                ? (totalRecommendations / allUsers.length).toFixed(1) 
+                : '0';
+            document.getElementById('summaryStats').classList.remove('hidden');
+        }
+
+        // Filter users
+        function filterUsers() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const personaFilter = document.getElementById('personaFilter').value;
+            
+            filteredUsers = allUsers.filter(user => {
+                const matchesSearch = !searchTerm || 
+                    user.name.toLowerCase().includes(searchTerm) ||
+                    user.user_id.toLowerCase().includes(searchTerm);
+                
+                const matchesPersona = !personaFilter || user.persona_30d === personaFilter;
+                
+                return matchesSearch && matchesPersona;
+            });
+            
+            renderTable();
+        }
+
+        // Sort table
+        function sortTable(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            
+            // Reset all sort indicators
+            document.querySelectorAll('[id^="sort-"]').forEach(el => {
+                el.textContent = '↕';
+            });
+            
+            // Set current sort indicator
+            const indicator = document.getElementById(`sort-${column}`);
+            indicator.textContent = sortDirection === 'asc' ? '↑' : '↓';
+            
+            filteredUsers.sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(column) {
+                    case 'name':
+                        aVal = a.name.toLowerCase();
+                        bVal = b.name.toLowerCase();
+                        break;
+                    case 'persona':
+                        aVal = (a.persona_30d || '').toLowerCase();
+                        bVal = (b.persona_30d || '').toLowerCase();
+                        break;
+                    case 'behaviors':
+                        aVal = a.behavior_count;
+                        bVal = b.behavior_count;
+                        break;
+                    case 'recommendations':
+                        aVal = a.recommendation_count;
+                        bVal = b.recommendation_count;
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            renderTable();
+        }
+
+        // Get persona badge color class
+        function getPersonaBadgeClass(persona) {
+            const colors = {
+                'high_utilization': 'bg-red-100 text-red-800',
+                'variable_income': 'bg-yellow-100 text-yellow-800',
+                'subscription_heavy': 'bg-purple-100 text-purple-800',
+                'savings_builder': 'bg-green-100 text-green-800',
+                'general_wellness': 'bg-blue-100 text-blue-800'
+            };
+            return colors[persona] || 'bg-gray-100 text-gray-800';
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Event listeners
+        document.getElementById('searchInput').addEventListener('input', filterUsers);
+        document.getElementById('personaFilter').addEventListener('change', filterUsers);
+
+        // Load users on page load
+        fetchUsers();
+    </script>
+</body>
+</html>
+

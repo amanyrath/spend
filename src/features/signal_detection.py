@@ -14,6 +14,86 @@ from collections import defaultdict
 import statistics
 
 from src.database import db
+from src.database.firestore import get_user_transactions, get_user_accounts, store_feature as firestore_store_feature, get_user_features as firestore_get_user_features
+import os
+
+# Use Firestore if FIREBASE_SERVICE_ACCOUNT env var is set (production/Vercel)
+USE_FIRESTORE = os.getenv('FIREBASE_SERVICE_ACCOUNT') is not None or os.path.exists('firebase-service-account.json')
+
+
+class DictRow:
+    """Mock Row class to make Firestore dicts compatible with SQLite Row interface"""
+    def __init__(self, data):
+        self._data = data
+    
+    def __getitem__(self, key):
+        return self._data.get(key)
+    
+    def get(self, key, default=None):
+        return self._data.get(key, default)
+
+
+def _get_transactions(user_id: str, cutoff_date: str, filters: Dict[str, Any] = None) -> List:
+    """Get transactions from either SQLite or Firestore"""
+    if USE_FIRESTORE:
+        transactions = get_user_transactions(user_id, cutoff_date)
+        # Apply filters
+        filtered = []
+        for txn in transactions:
+            if filters:
+                if filters.get('amount_lt') and txn.get('amount', 0) >= filters['amount_lt']:
+                    continue
+                if filters.get('amount_gt') and txn.get('amount', 0) <= filters['amount_gt']:
+                    continue
+                if filters.get('category') and filters['category'] not in str(txn.get('category', '')):
+                    continue
+            filtered.append(DictRow(txn))
+        return filtered
+    else:
+        # SQLite path
+        where_clauses = ["user_id = ?", "date >= ?"]
+        params = [user_id, cutoff_date]
+        
+        if filters:
+            if filters.get('amount_lt'):
+                where_clauses.append("amount < ?")
+                params.append(filters['amount_lt'])
+            if filters.get('amount_gt'):
+                where_clauses.append("amount > ?")
+                params.append(filters['amount_gt'])
+        
+        query = f"""
+            SELECT merchant_name, date, amount, category
+            FROM transactions
+            WHERE {' AND '.join(where_clauses)}
+            ORDER BY date
+        """
+        return db.fetch_all(query, tuple(params))
+
+
+def _get_accounts(user_id: str, account_type: str = None, subtype: str = None) -> List:
+    """Get accounts from either SQLite or Firestore"""
+    if USE_FIRESTORE:
+        accounts = get_user_accounts(user_id, account_type, subtype)
+        return [DictRow(acc) for acc in accounts]
+    else:
+        # SQLite path
+        where_clauses = ["user_id = ?"]
+        params = [user_id]
+        
+        if account_type:
+            where_clauses.append("type = ?")
+            params.append(account_type)
+        if subtype:
+            where_clauses.append("subtype = ?")
+            params.append(subtype)
+        
+        query = f"""
+            SELECT account_id, balance, "limit", type, subtype
+            FROM accounts
+            WHERE {' AND '.join(where_clauses)}
+        """
+        return db.fetch_all(query, tuple(params))
 
 
 def _get_date_window_days_ago(days: int) -> str:
@@ -65,13 +145,7 @@ def detect_subscriptions(user_id: str, window_days: int = 90) -> Dict[str, Any]:
     cutoff_date = _get_date_window_days_ago(window_days)
     
     # Get all transactions for user in the window
-    query = """
-        SELECT merchant_name, date, amount, category
-        FROM transactions
-        WHERE user_id = ? AND date >= ? AND amount < 0
-        ORDER BY date
-    """
-    transactions = db.fetch_all(query, (user_id, cutoff_date))
+    transactions = _get_transactions(user_id, cutoff_date, filters={'amount_lt': 0})
     
     if not transactions:
         return {
@@ -177,12 +251,9 @@ def detect_credit_utilization(user_id: str, window_days: int = 30) -> Dict[str, 
     cutoff_date = _get_date_window_days_ago(window_days)
     
     # Get all credit accounts for user
-    query = """
-        SELECT account_id, balance, "limit", type, subtype
-        FROM accounts
-        WHERE user_id = ? AND type = 'credit' AND "limit" > 0
-    """
-    credit_accounts = db.fetch_all(query, (user_id,))
+    credit_accounts = _get_accounts(user_id, account_type='credit')
+    # Filter out accounts with no limit
+    credit_accounts = [acc for acc in credit_accounts if acc.get("limit", 0) > 0]
     
     if not credit_accounts:
         return {
@@ -196,30 +267,50 @@ def detect_credit_utilization(user_id: str, window_days: int = 30) -> Dict[str, 
     
     # Get recent payments and interest charges
     account_ids = [acc["account_id"] for acc in credit_accounts]
-    placeholders = ",".join(["?"] * len(account_ids))
     
-    payments_query = f"""
-        SELECT account_id, date, amount, merchant_name, category
-        FROM transactions
-        WHERE account_id IN ({placeholders}) 
-        AND date >= ? 
-        AND amount > 0
-        ORDER BY date DESC
-    """
-    payments = db.fetch_all(payments_query, tuple(account_ids) + (cutoff_date,))
-    
-    # Get interest charges (negative amounts that might be interest)
-    interest_query = f"""
-        SELECT account_id, SUM(amount) as total_interest
-        FROM transactions
-        WHERE account_id IN ({placeholders})
-        AND date >= ?
-        AND amount < 0
-        AND (category LIKE '%interest%' OR merchant_name LIKE '%interest%' OR category LIKE '%fee%')
-        GROUP BY account_id
-    """
-    interest_charges = db.fetch_all(interest_query, tuple(account_ids) + (cutoff_date,))
-    interest_map = {row["account_id"]: abs(row["total_interest"] or 0) for row in interest_charges}
+    if USE_FIRESTORE:
+        # Get all transactions for user
+        all_txns = get_user_transactions(user_id, cutoff_date)
+        # Filter for credit account transactions
+        payments = [DictRow(txn) for txn in all_txns 
+                   if txn.get('account_id') in account_ids and txn.get('amount', 0) > 0]
+        
+        # Calculate interest charges
+        interest_map = {}
+        for account_id in account_ids:
+            account_txns = [txn for txn in all_txns 
+                          if txn.get('account_id') == account_id 
+                          and txn.get('amount', 0) < 0
+                          and cutoff_date <= txn.get('date', '')]
+            total_interest = sum(abs(txn.get('amount', 0)) for txn in account_txns
+                               if 'interest' in str(txn.get('category', '')).lower() 
+                               or 'interest' in str(txn.get('merchant_name', '')).lower()
+                               or 'fee' in str(txn.get('category', '')).lower())
+            interest_map[account_id] = total_interest
+    else:
+        # SQLite path
+        placeholders = ",".join(["?"] * len(account_ids))
+        payments_query = f"""
+            SELECT account_id, date, amount, merchant_name, category
+            FROM transactions
+            WHERE account_id IN ({placeholders}) 
+            AND date >= ? 
+            AND amount > 0
+            ORDER BY date DESC
+        """
+        payments = db.fetch_all(payments_query, tuple(account_ids) + (cutoff_date,))
+        
+        interest_query = f"""
+            SELECT account_id, SUM(amount) as total_interest
+            FROM transactions
+            WHERE account_id IN ({placeholders})
+            AND date >= ?
+            AND amount < 0
+            AND (category LIKE '%interest%' OR merchant_name LIKE '%interest%' OR category LIKE '%fee%')
+            GROUP BY account_id
+        """
+        interest_charges = db.fetch_all(interest_query, tuple(account_ids) + (cutoff_date,))
+        interest_map = {row["account_id"]: abs(row["total_interest"] or 0) for row in interest_charges}
     
     # Calculate utilization for each account
     accounts_detail = []
@@ -315,13 +406,10 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
     cutoff_date = _get_date_window_days_ago(window_days)
     
     # Get savings accounts
-    query = """
-        SELECT account_id, balance, type, subtype
-        FROM accounts
-        WHERE user_id = ? 
-        AND (subtype IN ('savings', 'money market', 'hsa') OR type = 'depository' AND subtype LIKE '%savings%')
-    """
-    savings_accounts = db.fetch_all(query, (user_id,))
+    all_accounts = _get_accounts(user_id)
+    savings_accounts = [acc for acc in all_accounts 
+                       if acc.get('subtype') in ('savings', 'money market', 'hsa') 
+                       or (acc.get('type') == 'depository' and 'savings' in str(acc.get('subtype', '')).lower())]
     
     if not savings_accounts:
         return {
@@ -338,16 +426,19 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
     # Here we'll calculate based on transaction flows
     
     account_ids = [acc["account_id"] for acc in savings_accounts]
-    placeholders = ",".join(["?"] * len(account_ids))
     
-    # Get all transactions for savings accounts
-    transactions_query = f"""
-        SELECT account_id, date, amount
-        FROM transactions
-        WHERE account_id IN ({placeholders}) AND date >= ?
-        ORDER BY date
-    """
-    transactions = db.fetch_all(transactions_query, tuple(account_ids) + (cutoff_date,))
+    if USE_FIRESTORE:
+        all_txns = get_user_transactions(user_id, cutoff_date)
+        transactions = [DictRow(txn) for txn in all_txns if txn.get('account_id') in account_ids]
+    else:
+        placeholders = ",".join(["?"] * len(account_ids))
+        transactions_query = f"""
+            SELECT account_id, date, amount
+            FROM transactions
+            WHERE account_id IN ({placeholders}) AND date >= ?
+            ORDER BY date
+        """
+        transactions = db.fetch_all(transactions_query, tuple(account_ids) + (cutoff_date,))
     
     # Calculate net inflow
     net_inflow = 0.0
@@ -371,19 +462,28 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
         growth_rate = 100.0 if total_savings > 0 else 0.0
     
     # Calculate average monthly expenses (from checking account transactions)
-    checking_query = """
-        SELECT SUM(ABS(amount)) as total_spend
-        FROM transactions
-        WHERE user_id = ? 
-        AND account_id IN (
-            SELECT account_id FROM accounts 
-            WHERE user_id = ? AND subtype = 'checking'
-        )
-        AND date >= ?
-        AND amount < 0
-    """
-    expense_data = db.fetch_one(checking_query, (user_id, user_id, cutoff_date))
-    total_spend = expense_data["total_spend"] or 0.0 if expense_data else 0.0
+    checking_accounts = _get_accounts(user_id, subtype='checking')
+    checking_account_ids = [acc["account_id"] for acc in checking_accounts]
+    
+    if USE_FIRESTORE:
+        all_txns = get_user_transactions(user_id, cutoff_date)
+        total_spend = sum(abs(txn.get('amount', 0)) for txn in all_txns 
+                         if txn.get('account_id') in checking_account_ids and txn.get('amount', 0) < 0)
+    else:
+        placeholders = ",".join(["?"] * len(checking_account_ids)) if checking_account_ids else ""
+        if checking_account_ids:
+            checking_query = f"""
+                SELECT SUM(ABS(amount)) as total_spend
+                FROM transactions
+                WHERE user_id = ? 
+                AND account_id IN ({placeholders})
+                AND date >= ?
+                AND amount < 0
+            """
+            expense_data = db.fetch_one(checking_query, (user_id,) + tuple(checking_account_ids) + (cutoff_date,))
+            total_spend = expense_data["total_spend"] or 0.0 if expense_data else 0.0
+        else:
+            total_spend = 0.0
     
     # Calculate average monthly expenses
     months_in_window = window_days / 30.0
@@ -453,13 +553,8 @@ def detect_income_stability(user_id: str, window_days: int = 180) -> Dict[str, A
     cutoff_date = _get_date_window_days_ago(window_days)
     
     # Get checking account
-    checking_query = """
-        SELECT account_id, balance
-        FROM accounts
-        WHERE user_id = ? AND subtype = 'checking'
-        LIMIT 1
-    """
-    checking_account = db.fetch_one(checking_query, (user_id,))
+    checking_accounts = _get_accounts(user_id, subtype='checking')
+    checking_account = checking_accounts[0] if checking_accounts else None
     
     if not checking_account:
         return {
@@ -476,17 +571,28 @@ def detect_income_stability(user_id: str, window_days: int = 180) -> Dict[str, A
     
     # Get payroll deposits (positive amounts, likely ACH or deposits)
     # Look for transactions with keywords or large positive amounts
-    payroll_query = """
-        SELECT date, amount, merchant_name, category
-        FROM transactions
-        WHERE account_id = ? 
-        AND date >= ?
-        AND amount > 0
-        AND (amount > 500 OR merchant_name LIKE '%payroll%' OR merchant_name LIKE '%employer%' 
-             OR category LIKE '%income%' OR merchant_name LIKE '%salary%')
-        ORDER BY date
-    """
-    payroll_transactions = db.fetch_all(payroll_query, (account_id, cutoff_date))
+    if USE_FIRESTORE:
+        all_txns = get_user_transactions(user_id, cutoff_date)
+        payroll_transactions = [DictRow(txn) for txn in all_txns 
+                              if txn.get('account_id') == account_id 
+                              and txn.get('amount', 0) > 0
+                              and (txn.get('amount', 0) > 500 
+                                   or 'payroll' in str(txn.get('merchant_name', '')).lower()
+                                   or 'employer' in str(txn.get('merchant_name', '')).lower()
+                                   or 'income' in str(txn.get('category', '')).lower()
+                                   or 'salary' in str(txn.get('merchant_name', '')).lower())]
+    else:
+        payroll_query = """
+            SELECT date, amount, merchant_name, category
+            FROM transactions
+            WHERE account_id = ? 
+            AND date >= ?
+            AND amount > 0
+            AND (amount > 500 OR merchant_name LIKE '%payroll%' OR merchant_name LIKE '%employer%' 
+                 OR category LIKE '%income%' OR merchant_name LIKE '%salary%')
+            ORDER BY date
+        """
+        payroll_transactions = db.fetch_all(payroll_query, (account_id, cutoff_date))
     
     if len(payroll_transactions) < 2:
         return {
@@ -538,15 +644,20 @@ def detect_income_stability(user_id: str, window_days: int = 180) -> Dict[str, A
     avg_monthly_income = total_income / months_in_window if months_in_window > 0 else 0.0
     
     # Calculate average monthly expenses
-    expense_query = """
-        SELECT SUM(ABS(amount)) as total_spend
-        FROM transactions
-        WHERE account_id = ? 
-        AND date >= ?
-        AND amount < 0
-    """
-    expense_data = db.fetch_one(expense_query, (account_id, cutoff_date))
-    total_spend = expense_data["total_spend"] or 0.0 if expense_data else 0.0
+    if USE_FIRESTORE:
+        all_txns = get_user_transactions(user_id, cutoff_date)
+        total_spend = sum(abs(txn.get('amount', 0)) for txn in all_txns 
+                         if txn.get('account_id') == account_id and txn.get('amount', 0) < 0)
+    else:
+        expense_query = """
+            SELECT SUM(ABS(amount)) as total_spend
+            FROM transactions
+            WHERE account_id = ? 
+            AND date >= ?
+            AND amount < 0
+        """
+        expense_data = db.fetch_one(expense_query, (account_id, cutoff_date))
+        total_spend = expense_data["total_spend"] or 0.0 if expense_data else 0.0
     avg_monthly_expenses = total_spend / months_in_window if months_in_window > 0 else 0.0
     
     # Calculate cash-flow buffer
@@ -609,22 +720,25 @@ def store_feature(user_id: str, signal_type: str, signal_data: Dict[str, Any], t
         signal_data: Dictionary with signal data
         time_window: Time window string ("30d" or "180d")
     """
-    signal_json = json.dumps(signal_data)
-    computed_at = datetime.now().isoformat()
-    
-    # Delete existing feature if it exists and insert new feature (idempotent)
-    # Do both in a single transaction
-    delete_query = """
-        DELETE FROM computed_features
-        WHERE user_id = ? AND signal_type = ? AND time_window = ?
-    """
-    insert_query = """
-        INSERT INTO computed_features (user_id, time_window, signal_type, signal_data, computed_at)
-        VALUES (?, ?, ?, ?, ?)
-    """
-    with db.get_db_connection() as conn:
-        conn.execute(delete_query, (user_id, signal_type, time_window))
-        conn.execute(insert_query, (user_id, time_window, signal_type, signal_json, computed_at))
+    if USE_FIRESTORE:
+        firestore_store_feature(user_id, signal_type, signal_data, time_window)
+    else:
+        signal_json = json.dumps(signal_data)
+        computed_at = datetime.now().isoformat()
+        
+        # Delete existing feature if it exists and insert new feature (idempotent)
+        # Do both in a single transaction
+        delete_query = """
+            DELETE FROM computed_features
+            WHERE user_id = ? AND signal_type = ? AND time_window = ?
+        """
+        insert_query = """
+            INSERT INTO computed_features (user_id, time_window, signal_type, signal_data, computed_at)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        with db.get_db_connection() as conn:
+            conn.execute(delete_query, (user_id, signal_type, time_window))
+            conn.execute(insert_query, (user_id, time_window, signal_type, signal_json, computed_at))
 
 
 def get_user_features(user_id: str, time_window: str = "30d") -> Dict[str, Any]:
@@ -637,18 +751,28 @@ def get_user_features(user_id: str, time_window: str = "30d") -> Dict[str, Any]:
     Returns:
         Dictionary with all features, parsed from JSON
     """
-    query = """
-        SELECT signal_type, signal_data
-        FROM computed_features
-        WHERE user_id = ? AND time_window = ?
-    """
-    rows = db.fetch_all(query, (user_id, time_window))
-    
-    features = {}
-    for row in rows:
-        signal_type = row["signal_type"]
-        signal_data = json.loads(row["signal_data"])
-        features[signal_type] = signal_data
-    
-    return features
+    if USE_FIRESTORE:
+        features_list = firestore_get_user_features(user_id, time_window)
+        features = {}
+        for feature_doc in features_list:
+            signal_type = feature_doc.get('signal_type')
+            signal_data = feature_doc.get('signal_data')
+            if signal_type and signal_data:
+                features[signal_type] = signal_data
+        return features
+    else:
+        query = """
+            SELECT signal_type, signal_data
+            FROM computed_features
+            WHERE user_id = ? AND time_window = ?
+        """
+        rows = db.fetch_all(query, (user_id, time_window))
+        
+        features = {}
+        for row in rows:
+            signal_type = row["signal_type"]
+            signal_data = json.loads(row["signal_data"])
+            features[signal_type] = signal_data
+        
+        return features
 

@@ -26,6 +26,10 @@ ENV/
 env/
 .venv
 
+# Node modules
+node_modules/
+**/node_modules/
+
 # IDE
 .vscode/
 .idea/
@@ -62,3 +66,7 @@ results/*.txt
 # Logs
 *.log
 
+
+firebase-service-account.json
+
+.vercel
