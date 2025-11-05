@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react"
+import React, { useEffect, useState, useMemo } from "react"
 import { fetchTransactions, type Transaction } from "@/lib/api"
 import {
   Table,
@@ -462,9 +462,8 @@ export function TransactionsTab({ userId }: TransactionsTabProps) {
                       const showAuthorizedDate = txn.authorized_date && txn.authorized_date !== txn.date
                       
                       return (
-                        <>
-                          <TableRow 
-                            key={txn.transaction_id}
+                        <React.Fragment key={txn.transaction_id}>
+                          <TableRow
                             className="hover:bg-muted/50 transition-colors border-b cursor-pointer"
                             onClick={() => {
                               const newExpanded = new Set(expandedTransactions)
@@ -614,7 +613,7 @@ export function TransactionsTab({ userId }: TransactionsTabProps) {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </React.Fragment>
                       )
                     })}
                   </TableBody>

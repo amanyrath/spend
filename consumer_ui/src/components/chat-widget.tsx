@@ -3,6 +3,7 @@ import { MessageCircle, X, Minus, ArrowRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { sendChatMessage } from "@/lib/api"
+import ReactMarkdown from 'react-markdown'
 
 interface Message {
   id: string
@@ -169,23 +170,51 @@ export function ChatWidget({ userId, className }: ChatWidgetProps) {
     return date.toLocaleDateString()
   }
 
-  // Highlight data citations in bot messages
+  // Highlight data citations in bot messages and render markdown
   const renderMessageText = (text: string) => {
-    // Simple pattern matching for data citations (will be enhanced in Story 5.3)
-    const parts = text.split(/(\d+%|\$\d+|\d+ subscriptions)/g)
-    return parts.map((part, index) => {
-      if (part.match(/\d+%|\$\d+|\d+ subscriptions/)) {
-        return (
-          <span
-            key={index}
-            className="bg-[rgba(30,64,175,0.1)] text-[#1e40af] px-1.5 py-0.5 rounded font-semibold text-[0.8125rem] inline-block mx-0.5"
-          >
-            {part}
-          </span>
-        )
-      }
-      return <span key={index}>{part}</span>
-    })
+    return (
+      <ReactMarkdown
+        components={{
+          // Highlight citations (numbers, percentages, dollar amounts)
+          text: ({ node, children, ...props }) => {
+            const textContent = String(children)
+            // Check if this text contains citations (percentages, dollar amounts, subscriptions)
+            const citationPattern = /(\d+\.?\d*%|\$\d+[\d,]*\.?\d*|\d+ subscriptions)/g
+            const citationMatch = textContent.match(citationPattern)
+            if (citationMatch) {
+              const parts = textContent.split(citationPattern)
+              return (
+                <>
+                  {parts.map((part, index) => {
+                    if (part && part.match(citationPattern)) {
+                      return (
+                        <span
+                          key={index}
+                          className="bg-[rgba(30,64,175,0.1)] text-[#1e40af] px-1.5 py-0.5 rounded font-semibold text-[0.8125rem] inline-block mx-0.5"
+                        >
+                          {part}
+                        </span>
+                      )
+                    }
+                    return part ? <span key={index}>{part}</span> : null
+                  })}
+                </>
+              )
+            }
+            return <>{children}</>
+          },
+          // Style list items
+          ul: ({ node, ...props }) => <ul className="list-disc list-inside space-y-1 my-2 pl-0" {...props} />,
+          li: ({ node, ...props }) => <li className="ml-4" {...props} />,
+          // Style bold text
+          strong: ({ node, ...props }) => <strong className="font-semibold text-[#1e293b]" {...props} />,
+          // Style paragraphs
+          p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    )
   }
 
   return (
