@@ -235,6 +235,88 @@ EDUCATION_CONTENT: List[Dict[str, Any]] = [
         Celebrate small wins along the way. Having clear, specific goals makes it easier to stay motivated 
         and make financial decisions that align with your priorities.""",
         "rationale_template": "Your savings are growing at {growth_rate}% per month. Setting specific financial goals could help you direct this progress toward your priorities."
+    },
+    
+    # General Wellness Persona (5 items)
+    {
+        "content_id": "edu_budgeting_basics_101",
+        "type": "education",
+        "title": "Budgeting Basics: Your First Budget",
+        "category": "budgeting",
+        "personas": ["general_wellness"],
+        "trigger_signals": [],
+        "summary": "Learn the fundamentals of creating and sticking to a budget that works for your lifestyle.",
+        "full_content": """A budget is simply a plan for your money. Start by tracking your income and expenses 
+        for one month to understand where your money goes. Then create categories for needs (housing, food, 
+        utilities), wants (entertainment, dining out), and savings/debt repayment. Use the 50/30/20 rule as 
+        a starting point: 50% needs, 30% wants, 20% savings and debt. Review and adjust your budget monthly 
+        to reflect changes in income or expenses. Remember, a budget is a tool to help you reach your goals, 
+        not a restriction.""",
+        "rationale_template": "Creating a budget can help you gain clarity on your spending and make progress toward your financial goals."
+    },
+    {
+        "content_id": "edu_emergency_fund_101",
+        "type": "education",
+        "title": "Building Your Emergency Fund",
+        "category": "savings",
+        "personas": ["general_wellness"],
+        "trigger_signals": [],
+        "summary": "Why an emergency fund is essential and how to build one, even on a tight budget.",
+        "full_content": """An emergency fund is money set aside to cover unexpected expenses like medical bills, 
+        car repairs, or job loss. Most experts recommend saving 3-6 months of expenses, but start with 
+        $1,000 as a first goal. Build it gradually by setting aside a small amount each month, even if it's 
+        just $25-50. Keep your emergency fund in a separate savings account so you're not tempted to spend it.
+        Only use it for true emergencies. Having this buffer provides peace of mind and prevents you from 
+        going into debt when unexpected expenses arise.""",
+        "rationale_template": "Building an emergency fund provides a financial safety net and can help you avoid debt when unexpected expenses occur."
+    },
+    {
+        "content_id": "edu_credit_score_basics_101",
+        "type": "education",
+        "title": "Understanding Your Credit Score",
+        "category": "credit",
+        "personas": ["general_wellness"],
+        "trigger_signals": [],
+        "summary": "Learn what factors affect your credit score and how to improve it over time.",
+        "full_content": """Your credit score is a three-digit number that lenders use to assess your creditworthiness.
+        The main factors are payment history (35%), credit utilization (30%), length of credit history (15%), 
+        credit mix (10%), and new credit inquiries (10%). To improve your score, pay all bills on time, 
+        keep credit card balances low, avoid opening too many new accounts, and maintain a mix of credit types.
+        Check your credit report regularly for errors. Building good credit takes time, but consistent 
+        responsible behavior will improve your score over months and years.""",
+        "rationale_template": "Understanding how credit scores work can help you build and maintain good credit, which opens doors to better financial opportunities."
+    },
+    {
+        "content_id": "edu_banking_basics_101",
+        "type": "education",
+        "title": "Banking Basics: Choosing the Right Accounts",
+        "category": "banking",
+        "personas": ["general_wellness"],
+        "trigger_signals": [],
+        "summary": "Learn about different types of bank accounts and how to choose the right ones for your needs.",
+        "full_content": """Different bank accounts serve different purposes. Checking accounts are for daily 
+        transactions and bill payments. Savings accounts earn interest but have withdrawal limits. High-yield 
+        savings accounts offer better rates but are often online-only. Money market accounts combine features 
+        of both. When choosing accounts, consider fees, minimum balance requirements, interest rates, and 
+        accessibility. Many online banks offer better rates and lower fees than traditional banks. 
+        Look for accounts with no monthly maintenance fees and features like mobile banking and ATM access.""",
+        "rationale_template": "Choosing the right bank accounts can help you save money on fees and earn more interest on your savings."
+    },
+    {
+        "content_id": "edu_financial_health_check_101",
+        "type": "education",
+        "title": "Monthly Financial Health Check",
+        "category": "planning",
+        "personas": ["general_wellness"],
+        "trigger_signals": [],
+        "summary": "A simple monthly checklist to review and improve your financial health.",
+        "full_content": """A monthly financial health check helps you stay on track with your goals. 
+        Review your spending to see if it aligns with your budget. Check your account balances and ensure 
+        you're not overdrafting. Review any recurring subscriptions or bills to see if you can reduce costs.
+        Check your credit card statements for any unauthorized charges. Update your budget if income or 
+        expenses have changed. Review progress toward savings goals. This monthly check-in takes just 15-20 
+        minutes but helps you catch issues early and stay focused on your financial goals.""",
+        "rationale_template": "Regular financial check-ins help you stay aware of your money and make adjustments before small issues become big problems."
     }
 ]
 
@@ -325,6 +407,46 @@ PARTNER_OFFERS: List[Dict[str, Any]] = [
             "is_overdue": {"equals": False}
         },
         "rationale_template": "A cashback credit card could help you earn rewards on your regular spending while you manage your finances."
+    },
+    {
+        "offer_id": "offer_emergency_fund_savings",
+        "type": "partner_offer",
+        "title": "Emergency Fund Savings Account",
+        "partner": "Example Emergency Savings Bank",
+        "summary": "Start building your emergency fund with automatic transfers and bonus interest.",
+        "eligibility_criteria": {},
+        "rationale_template": "Building an emergency fund provides financial security. This account makes it easy to save automatically."
+    },
+    {
+        "offer_id": "offer_round_up_savings",
+        "type": "partner_offer",
+        "title": "Round-Up Savings App",
+        "partner": "Example Savings Tech",
+        "summary": "Automatically save spare change by rounding up purchases to the nearest dollar.",
+        "eligibility_criteria": {},
+        "rationale_template": "Round-up savings can help you build savings effortlessly by automatically setting aside small amounts from each purchase."
+    },
+    {
+        "offer_id": "offer_automated_investing",
+        "type": "partner_offer",
+        "title": "Automated Investing Platform",
+        "partner": "Example Robo-Advisor",
+        "summary": "Start investing with as little as $5. Automated portfolio management with low fees.",
+        "eligibility_criteria": {
+            "savings_balance": {"min": 1000}
+        },
+        "rationale_template": "With your savings growing, automated investing could help you start building long-term wealth with minimal effort."
+    },
+    {
+        "offer_id": "offer_bill_negotiation_service",
+        "type": "partner_offer",
+        "title": "Bill Negotiation Service",
+        "partner": "Example Bill Negotiators",
+        "summary": "Professional negotiators work to lower your monthly bills and subscriptions.",
+        "eligibility_criteria": {
+            "monthly_recurring": {"min": 50}
+        },
+        "rationale_template": "A bill negotiation service could help you reduce your monthly expenses by negotiating better rates on your behalf."
     }
 ]
 

@@ -262,7 +262,7 @@ def calculate_persona_distribution() -> Dict[str, Any]:
     # Simplified query (SQLite may not support ROW_NUMBER in older versions)
     # Use a simpler approach
     persona_query = """
-        SELECT DISTINCT user_id, persona
+        SELECT DISTINCT user_id, COALESCE(primary_persona, persona) as persona
         FROM persona_assignments
         WHERE time_window = '30d'
     """
@@ -276,7 +276,7 @@ def calculate_persona_distribution() -> Dict[str, Any]:
         persona = row["persona"]
         # Get most recent persona for each user
         most_recent_query = """
-            SELECT persona
+            SELECT COALESCE(primary_persona, persona) as persona
             FROM persona_assignments
             WHERE user_id = ? AND time_window = '30d'
             ORDER BY assigned_at DESC

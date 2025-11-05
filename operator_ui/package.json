@@ -1,4 +1,10 @@
 {
+  "name": "spendsense-operator-ui",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "npx http-server templates -p 8080 -c-1 --cors",
+    "start": "npx http-server templates -p 8080 -c-1 --cors"
+  },
   "dependencies": {
     "firebase": "^12.5.0"
   }

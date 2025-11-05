@@ -5,6 +5,7 @@ personas for both 30d and 180d time windows.
 """
 
 import sys
+import os
 from pathlib import Path
 
 # Add src to path
@@ -13,17 +14,34 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.database import db
 from src.personas.assignment import assign_persona
 
+# Check if using Firestore (emulator or production)
+USE_FIRESTORE = (
+    os.getenv('FIRESTORE_EMULATOR_HOST') is not None or 
+    os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true' or
+    os.getenv('FIREBASE_SERVICE_ACCOUNT') is not None or 
+    os.path.exists('firebase-service-account.json')
+)
+
+if USE_FIRESTORE:
+    from src.database.firestore import get_all_users
+
 
 def assign_all_users():
     """Assign personas to all users."""
-    # Ensure database schema is initialized
-    print("Ensuring database schema is initialized...")
-    db.init_schema()
-    print("Schema check complete.\n")
+    # Ensure database schema is initialized (only for SQLite)
+    if not USE_FIRESTORE:
+        print("Ensuring database schema is initialized...")
+        db.init_schema()
+        print("Schema check complete.\n")
     
     # Get all users
-    users_query = "SELECT user_id FROM users"
-    users = db.fetch_all(users_query)
+    if USE_FIRESTORE:
+        users = get_all_users()
+        # Convert to list of dicts with user_id key
+        users = [{"user_id": user["user_id"]} for user in users]
+    else:
+        users_query = "SELECT user_id FROM users"
+        users = db.fetch_all(users_query)
     
     if not users:
         print("No users found in database.")

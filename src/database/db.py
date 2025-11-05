@@ -122,6 +122,70 @@ def init_schema(db_path: Optional[str] = None) -> None:
     
     with get_db_connection(db_path) as conn:
         conn.executescript(schema_sql)
+    
+    # Run migrations after schema initialization
+    run_migrations(db_path)
+
+
+def run_migrations(db_path: Optional[str] = None) -> None:
+    """Run database migrations to add new columns to existing tables.
+    
+    This function checks if columns exist before adding them, making it safe
+    to run multiple times (idempotent).
+    
+    Args:
+        db_path: Path to SQLite database file. If None, uses default path.
+    """
+    migrations_dir = Path(__file__).parent / "migrations"
+    if not migrations_dir.exists():
+        return  # No migrations to run
+    
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        
+        # Check if transactions table exists
+        cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='transactions'
+        """)
+        if not cursor.fetchone():
+            return  # Table doesn't exist yet, schema.sql will create it
+        
+        # Get existing columns
+        cursor.execute("PRAGMA table_info(transactions)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+        
+        # Define new columns to add
+        new_columns = [
+            ("location_address", "TEXT"),
+            ("location_city", "TEXT"),
+            ("location_region", "TEXT"),
+            ("location_postal_code", "TEXT"),
+            ("location_country", "TEXT"),
+            ("location_lat", "REAL"),
+            ("location_lon", "REAL"),
+            ("iso_currency_code", "TEXT DEFAULT 'USD'"),
+            ("payment_channel", "TEXT"),
+            ("authorized_date", "TEXT"),
+        ]
+        
+        # Add missing columns
+        added_iso_currency = False
+        for column_name, column_type in new_columns:
+            if column_name not in existing_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE transactions ADD COLUMN {column_name} {column_type}")
+                    print(f"Added column: {column_name}")
+                    if column_name == "iso_currency_code":
+                        added_iso_currency = True
+                except sqlite3.OperationalError as e:
+                    # Column might already exist (race condition) or other error
+                    if "duplicate column" not in str(e).lower():
+                        print(f"Warning: Could not add column {column_name}: {e}")
+        
+        # Set default USD for existing rows if we just added the column
+        if added_iso_currency:
+            cursor.execute("UPDATE transactions SET iso_currency_code = 'USD' WHERE iso_currency_code IS NULL")
 
 
 if __name__ == "__main__":

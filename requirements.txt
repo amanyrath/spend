@@ -7,3 +7,5 @@ pytest>=7.4.3
 pydantic>=2.5.0
 firebase-admin>=6.2.0
 python-dotenv>=1.0.0
+openai>=1.0.0
+guardrails-ai>=0.6.0

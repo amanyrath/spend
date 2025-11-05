@@ -49,6 +49,11 @@ data/*.db
 data/*.sqlite
 data/*.sqlite3
 
+# Data files (can be regenerated)
+data/*.csv
+data/*.json
+data/*.parquet
+
 # OS
 .DS_Store
 Thumbs.db

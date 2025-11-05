@@ -59,8 +59,8 @@
                 <div class="text-2xl font-bold text-gray-900" id="totalUsers">0</div>
             </div>
             <div class="bg-white p-4 rounded-lg shadow">
-                <div class="text-sm text-gray-600">Users with Personas</div>
-                <div class="text-2xl font-bold text-gray-900" id="usersWithPersonas">0</div>
+                <div class="text-sm text-gray-600">Users by Persona</div>
+                <div class="text-xs text-gray-500 mt-1" id="usersByPersona">-</div>
             </div>
             <div class="bg-white p-4 rounded-lg shadow">
                 <div class="text-sm text-gray-600">Avg Behaviors</div>
@@ -69,6 +69,24 @@
             <div class="bg-white p-4 rounded-lg shadow">
                 <div class="text-sm text-gray-600">Avg Recommendations</div>
                 <div class="text-2xl font-bold text-gray-900" id="avgRecommendations">0</div>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div id="paginationContainer" class="hidden flex items-center justify-between mt-4 mb-4">
+            <div class="text-sm text-gray-700">
+                Showing <span id="paginationStart">0</span> to <span id="paginationEnd">0</span> of <span id="paginationTotal">0</span> users
+            </div>
+            <div class="flex gap-2">
+                <button id="prevPageBtn" onclick="changePage(-1)" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Previous
+                </button>
+                <span class="px-4 py-2 text-sm text-gray-700">
+                    Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
+                </span>
+                <button id="nextPageBtn" onclick="changePage(1)" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Next
+                </button>
             </div>
         </div>
 
@@ -114,24 +132,68 @@
 
     <script>
         const API_BASE_URL = 'http://localhost:8000';
-        let allUsers = [];
-        let filteredUsers = [];
+        let currentPage = 1;
+        let pageLimit = 50;
+        let totalPages = 1;
         let sortColumn = null;
         let sortDirection = 'asc';
+        let searchTimeout = null;
+
+        // Get URL parameters
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                search: params.get('search') || '',
+                persona: params.get('persona') || '',
+                page: parseInt(params.get('page') || '1'),
+                limit: parseInt(params.get('limit') || '50')
+            };
+        }
+
+        // Update URL parameters
+        function updateUrlParams(params) {
+            const url = new URL(window.location);
+            Object.keys(params).forEach(key => {
+                if (params[key]) {
+                    url.searchParams.set(key, params[key]);
+                } else {
+                    url.searchParams.delete(key);
+                }
+            });
+            window.history.pushState({}, '', url);
+        }
 
         // Fetch users from API
         async function fetchUsers() {
             try {
-                const response = await fetch(`${API_BASE_URL}/api/users`);
+                const params = getUrlParams();
+                currentPage = params.page;
+                pageLimit = params.limit;
+                
+                // Update form inputs
+                document.getElementById('searchInput').value = params.search;
+                document.getElementById('personaFilter').value = params.persona;
+                
+                const queryParams = new URLSearchParams({
+                    page: params.page.toString(),
+                    limit: params.limit.toString()
+                });
+                if (params.search) queryParams.append('search', params.search);
+                if (params.persona) queryParams.append('persona', params.persona);
+                
+                const response = await fetch(`${API_BASE_URL}/api/users?${queryParams}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                allUsers = await response.json();
-                filteredUsers = [...allUsers];
-                renderTable();
-                updateSummaryStats();
+                const data = await response.json();
+                
+                renderTable(data.users || []);
+                updateSummaryStats(data.summary || {});
+                updatePagination(data.pagination || {});
+                
                 document.getElementById('loadingState').classList.add('hidden');
                 document.getElementById('tableContainer').classList.remove('hidden');
+                document.getElementById('paginationContainer').classList.remove('hidden');
             } catch (error) {
                 console.error('Error fetching users:', error);
                 document.getElementById('loadingState').classList.add('hidden');
@@ -141,10 +203,10 @@
         }
 
         // Render table
-        function renderTable() {
+        function renderTable(users) {
             const tbody = document.getElementById('userTableBody');
             
-            if (filteredUsers.length === 0) {
+            if (users.length === 0) {
                 tbody.innerHTML = '';
                 document.getElementById('tableContainer').classList.add('hidden');
                 document.getElementById('emptyState').classList.remove('hidden');
@@ -153,7 +215,37 @@
 
             document.getElementById('emptyState').classList.add('hidden');
             
-            tbody.innerHTML = filteredUsers.map(user => {
+            // Apply sorting if needed
+            if (sortColumn) {
+                users = [...users].sort((a, b) => {
+                    let aVal, bVal;
+                    switch(sortColumn) {
+                        case 'name':
+                            aVal = a.name.toLowerCase();
+                            bVal = b.name.toLowerCase();
+                            break;
+                        case 'persona':
+                            aVal = (a.persona_30d || '').toLowerCase();
+                            bVal = (b.persona_30d || '').toLowerCase();
+                            break;
+                        case 'behaviors':
+                            aVal = a.behavior_count;
+                            bVal = b.behavior_count;
+                            break;
+                        case 'recommendations':
+                            aVal = a.recommendation_count;
+                            bVal = b.recommendation_count;
+                            break;
+                        default:
+                            return 0;
+                    }
+                    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+            
+            tbody.innerHTML = users.map(user => {
                 const personaDisplay = user.persona_30d 
                     ? user.persona_30d.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
                     : 'None';
@@ -189,38 +281,65 @@
         }
 
         // Update summary statistics
-        function updateSummaryStats() {
-            const usersWithPersonas = allUsers.filter(u => u.persona_30d).length;
-            const totalBehaviors = allUsers.reduce((sum, u) => sum + u.behavior_count, 0);
-            const totalRecommendations = allUsers.reduce((sum, u) => sum + u.recommendation_count, 0);
+        function updateSummaryStats(summary) {
+            document.getElementById('totalUsers').textContent = summary.total_users || 0;
+            document.getElementById('avgBehaviors').textContent = summary.avg_behaviors || '0';
+            document.getElementById('avgRecommendations').textContent = summary.avg_recommendations || '0';
             
-            document.getElementById('totalUsers').textContent = allUsers.length;
-            document.getElementById('usersWithPersonas').textContent = usersWithPersonas;
-            document.getElementById('avgBehaviors').textContent = allUsers.length > 0 
-                ? (totalBehaviors / allUsers.length).toFixed(1) 
-                : '0';
-            document.getElementById('avgRecommendations').textContent = allUsers.length > 0 
-                ? (totalRecommendations / allUsers.length).toFixed(1) 
-                : '0';
+            // Display users by persona
+            const usersByPersona = summary.users_by_persona || {};
+            const personaText = Object.entries(usersByPersona)
+                .map(([persona, count]) => `${persona.replace(/_/g, ' ')}: ${count}`)
+                .join(', ') || 'None';
+            document.getElementById('usersByPersona').textContent = personaText;
+            
             document.getElementById('summaryStats').classList.remove('hidden');
         }
 
-        // Filter users
+        // Update pagination controls
+        function updatePagination(pagination) {
+            totalPages = pagination.total_pages || 1;
+            const total = pagination.total || 0;
+            const limit = pagination.limit || 50;
+            const page = pagination.page || 1;
+            
+            const start = total > 0 ? ((page - 1) * limit) + 1 : 0;
+            const end = Math.min(page * limit, total);
+            
+            document.getElementById('paginationStart').textContent = start;
+            document.getElementById('paginationEnd').textContent = end;
+            document.getElementById('paginationTotal').textContent = total;
+            document.getElementById('currentPage').textContent = page;
+            document.getElementById('totalPages').textContent = totalPages;
+            
+            document.getElementById('prevPageBtn').disabled = page <= 1;
+            document.getElementById('nextPageBtn').disabled = page >= totalPages;
+        }
+
+        // Change page
+        function changePage(delta) {
+            const params = getUrlParams();
+            const newPage = Math.max(1, Math.min(totalPages, params.page + delta));
+            updateUrlParams({ ...params, page: newPage });
+            fetchUsers();
+        }
+
+        // Filter users (with debouncing)
         function filterUsers() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const personaFilter = document.getElementById('personaFilter').value;
-            
-            filteredUsers = allUsers.filter(user => {
-                const matchesSearch = !searchTerm || 
-                    user.name.toLowerCase().includes(searchTerm) ||
-                    user.user_id.toLowerCase().includes(searchTerm);
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const params = getUrlParams();
+                const searchTerm = document.getElementById('searchInput').value.trim();
+                const personaFilter = document.getElementById('personaFilter').value;
                 
-                const matchesPersona = !personaFilter || user.persona_30d === personaFilter;
+                updateUrlParams({
+                    search: searchTerm,
+                    persona: personaFilter,
+                    page: 1  // Reset to first page when filtering
+                });
                 
-                return matchesSearch && matchesPersona;
-            });
-            
-            renderTable();
+                fetchUsers();
+            }, 300);  // 300ms debounce
         }
 
         // Sort table
@@ -241,36 +360,9 @@
             const indicator = document.getElementById(`sort-${column}`);
             indicator.textContent = sortDirection === 'asc' ? '↑' : '↓';
             
-            filteredUsers.sort((a, b) => {
-                let aVal, bVal;
-                
-                switch(column) {
-                    case 'name':
-                        aVal = a.name.toLowerCase();
-                        bVal = b.name.toLowerCase();
-                        break;
-                    case 'persona':
-                        aVal = (a.persona_30d || '').toLowerCase();
-                        bVal = (b.persona_30d || '').toLowerCase();
-                        break;
-                    case 'behaviors':
-                        aVal = a.behavior_count;
-                        bVal = b.behavior_count;
-                        break;
-                    case 'recommendations':
-                        aVal = a.recommendation_count;
-                        bVal = b.recommendation_count;
-                        break;
-                    default:
-                        return 0;
-                }
-                
-                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-                return 0;
-            });
-            
-            renderTable();
+            // Re-render table with current data
+            const params = getUrlParams();
+            fetchUsers();
         }
 
         // Get persona badge color class

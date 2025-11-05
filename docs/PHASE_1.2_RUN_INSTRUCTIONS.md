@@ -39,14 +39,14 @@ python3 src/ingest/data_generator.py
 
 **Expected output:**
 ```
-Generating synthetic data for 75 users...
-Generated 75 users
+Generating synthetic data for 200 users...
+Generated 200 users
 Generated XXX accounts
 Generated XXX transactions
 Applying diversity strategy...
 Generated XX liabilities
 Exporting data to files...
-Exported 75 users to data/users.json
+Exported 200 users to data/users.json
 Exported XXX accounts to data/accounts.csv
 Exported XXX transactions to data/transactions.csv
 Exported XX liabilities to data/liabilities.csv
@@ -65,7 +65,7 @@ python3 src/ingest/data_loader.py
 Initializing database schema...
 Schema initialized
 Loading users from data/users.json...
-Inserted 75 users
+Inserted 200 users
 Loading accounts from data/accounts.csv...
 Inserted XXX accounts
 Loading transactions from data/transactions.csv...

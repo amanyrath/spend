@@ -1,0 +1,14 @@
+{
+  "buildCommand": "cd consumer_ui && npm install && npm run build",
+  "outputDirectory": "consumer_ui/dist",
+  "devCommand": "cd consumer_ui && npm run dev",
+  "installCommand": "cd consumer_ui && npm install",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+

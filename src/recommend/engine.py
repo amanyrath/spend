@@ -19,7 +19,7 @@ from src.recommend.content_catalog import (
     get_content_by_persona
 )
 from src.recommend.rationale_generator import generate_rationale
-from src.guardrails.tone_validator import validate_tone
+from src.guardrails.guardrails_ai import get_guardrails
 
 
 def match_education_content(persona: str, signals: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -267,7 +267,8 @@ def generate_recommendations(user_id: str, time_window: str = "30d") -> List[Dic
     if not persona_assignment:
         return []
     
-    persona = persona_assignment["persona"]
+    # Use primary_persona (same as persona for backward compatibility)
+    persona = persona_assignment.get("primary_persona") or persona_assignment["persona"]
     
     # Get user signals
     signals = get_user_features(user_id, time_window)
@@ -284,7 +285,9 @@ def generate_recommendations(user_id: str, time_window: str = "30d") -> List[Dic
         rationale = generate_rationale(item["rationale_template"], signals, item)
         
         # Validate tone
-        tone_valid = validate_tone(rationale)
+        guardrails = get_guardrails()
+        is_valid, _, _ = guardrails.validate(rationale)
+        tone_valid = is_valid
         
         if not tone_valid:
             # Skip if tone validation fails
@@ -318,7 +321,9 @@ def generate_recommendations(user_id: str, time_window: str = "30d") -> List[Dic
         rationale = generate_rationale(offer["rationale_template"], signals, offer)
         
         # Validate tone
-        tone_valid = validate_tone(rationale)
+        guardrails = get_guardrails()
+        is_valid, _, _ = guardrails.validate(rationale)
+        tone_valid = is_valid
         
         if not tone_valid:
             continue

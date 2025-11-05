@@ -15,10 +15,16 @@ import statistics
 
 from src.database import db
 from src.database.firestore import get_user_transactions, get_user_accounts, store_feature as firestore_store_feature, get_user_features as firestore_get_user_features
+from src.utils.category_utils import normalize_category, get_primary_category, category_contains
 import os
 
-# Use Firestore if FIREBASE_SERVICE_ACCOUNT env var is set (production/Vercel)
-USE_FIRESTORE = os.getenv('FIREBASE_SERVICE_ACCOUNT') is not None or os.path.exists('firebase-service-account.json')
+# Use Firestore if emulator is enabled, service account env var is set, or service account file exists
+USE_FIRESTORE = (
+    os.getenv('FIRESTORE_EMULATOR_HOST') is not None or 
+    os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true' or
+    os.getenv('FIREBASE_SERVICE_ACCOUNT') is not None or 
+    os.path.exists('firebase-service-account.json')
+)
 
 
 class DictRow:
@@ -45,7 +51,7 @@ def _get_transactions(user_id: str, cutoff_date: str, filters: Dict[str, Any] = 
                     continue
                 if filters.get('amount_gt') and txn.get('amount', 0) <= filters['amount_gt']:
                     continue
-                if filters.get('category') and filters['category'] not in str(txn.get('category', '')):
+                if filters.get('category') and not category_contains(txn.get('category', ''), filters['category']):
                     continue
             filtered.append(DictRow(txn))
         return filtered
@@ -63,7 +69,8 @@ def _get_transactions(user_id: str, cutoff_date: str, filters: Dict[str, Any] = 
                 params.append(filters['amount_gt'])
         
         query = f"""
-            SELECT merchant_name, date, amount, category
+            SELECT merchant_name, date, amount, category, account_id,
+                   payment_channel, authorized_date, location_city, location_region, iso_currency_code
             FROM transactions
             WHERE {' AND '.join(where_clauses)}
             ORDER BY date
@@ -128,8 +135,10 @@ def detect_subscriptions(user_id: str, window_days: int = 90) -> Dict[str, Any]:
     - Group transactions by merchant name
     - Find merchants with >= 3 occurrences
     - Check for regular cadence (monthly ±3 days, weekly ±1 day)
+    - Prioritize online transactions for subscription detection
     - Calculate monthly recurring total
     - Calculate subscription share of total spend
+    - Use authorized_date if available, fall back to date
     
     Args:
         user_id: User identifier
@@ -140,7 +149,7 @@ def detect_subscriptions(user_id: str, window_days: int = 90) -> Dict[str, Any]:
         - recurring_merchants: List of merchant names with recurring patterns
         - monthly_recurring: Total monthly recurring amount
         - subscription_share: Percentage of total spend that is subscriptions
-        - merchant_details: List of dicts with merchant, frequency, amount
+        - merchant_details: List of dicts with merchant, frequency, amount, payment_channel
     """
     cutoff_date = _get_date_window_days_ago(window_days)
     
@@ -161,9 +170,12 @@ def detect_subscriptions(user_id: str, window_days: int = 90) -> Dict[str, Any]:
     
     for tx in transactions:
         merchant = tx["merchant_name"] or "Unknown"
+        # Use authorized_date if available, otherwise fall back to date
+        tx_date = tx.get("authorized_date") or tx["date"]
         merchant_transactions[merchant].append({
-            "date": _parse_date(tx["date"]),
-            "amount": abs(tx["amount"])
+            "date": _parse_date(tx_date),
+            "amount": abs(tx["amount"]),
+            "payment_channel": tx.get("payment_channel")
         })
         total_spend += abs(tx["amount"])
     
@@ -178,6 +190,14 @@ def detect_subscriptions(user_id: str, window_days: int = 90) -> Dict[str, Any]:
         
         # Sort by date
         txs.sort(key=lambda x: x["date"])
+        
+        # Count online vs other payment channels
+        online_count = sum(1 for tx in txs if tx.get("payment_channel") == "online")
+        online_ratio = online_count / len(txs) if txs else 0.0
+        
+        # Prioritize merchants with online transactions (more likely to be subscriptions)
+        # But still include in-store recurring patterns
+        is_likely_subscription = online_ratio >= 0.5
         
         # Calculate intervals between transactions
         intervals = []
@@ -196,7 +216,8 @@ def detect_subscriptions(user_id: str, window_days: int = 90) -> Dict[str, Any]:
         # Check for weekly pattern (7 days, ±1 day tolerance)
         is_weekly = 6 <= avg_interval <= 8
         
-        if is_monthly or is_weekly:
+        # If it's a likely subscription (online) or has regular pattern, include it
+        if (is_monthly or is_weekly) and (is_likely_subscription or len(txs) >= 4):
             recurring_merchants.append(merchant)
             
             # Calculate monthly cost
@@ -207,12 +228,18 @@ def detect_subscriptions(user_id: str, window_days: int = 90) -> Dict[str, Any]:
             
             monthly_recurring += monthly_cost
             
+            # Determine primary payment channel
+            payment_channels = [tx.get("payment_channel") for tx in txs if tx.get("payment_channel")]
+            primary_channel = max(set(payment_channels), key=payment_channels.count) if payment_channels else None
+            
             merchant_details.append({
                 "merchant": merchant,
                 "frequency": "monthly" if is_monthly else "weekly",
                 "amount": avg_amount,
                 "monthly_equivalent": monthly_cost,
-                "occurrences": len(txs)
+                "occurrences": len(txs),
+                "payment_channel": primary_channel,
+                "online_ratio": round(online_ratio, 2)
             })
     
     subscription_share = (monthly_recurring / total_spend * 100) if total_spend > 0 else 0.0
@@ -233,7 +260,9 @@ def detect_credit_utilization(user_id: str, window_days: int = 30) -> Dict[str, 
     - Flag: high (≥50%), medium (30-50%), low (<30%)
     - Detect minimum payment only (last_payment ≈ minimum_payment within $5)
     - Sum interest charges from transactions
+    - Analyze spending patterns using payment_channel (online vs in-store)
     - Check overdue status from liabilities (if available)
+    - Use authorized_date for payment timing when available
     
     Args:
         user_id: User identifier
@@ -247,6 +276,7 @@ def detect_credit_utilization(user_id: str, window_days: int = 30) -> Dict[str, 
         - interest_charged: Total interest charged in window
         - minimum_payment_only: Boolean indicating if only minimum payments made
         - is_overdue: Boolean indicating if any account is overdue
+        - online_spending_share: Percentage of credit spending that is online
     """
     cutoff_date = _get_date_window_days_ago(window_days)
     
@@ -262,7 +292,8 @@ def detect_credit_utilization(user_id: str, window_days: int = 30) -> Dict[str, 
             "accounts": [],
             "interest_charged": 0.0,
             "minimum_payment_only": False,
-            "is_overdue": False
+            "is_overdue": False,
+            "online_spending_share": 0.0
         }
     
     # Get recent payments and interest charges
@@ -275,6 +306,10 @@ def detect_credit_utilization(user_id: str, window_days: int = 30) -> Dict[str, 
         payments = [DictRow(txn) for txn in all_txns 
                    if txn.get('account_id') in account_ids and txn.get('amount', 0) > 0]
         
+        # Get spending transactions (negative amounts) for payment channel analysis
+        spending_txns = [DictRow(txn) for txn in all_txns 
+                        if txn.get('account_id') in account_ids and txn.get('amount', 0) < 0]
+        
         # Calculate interest charges
         interest_map = {}
         for account_id in account_ids:
@@ -283,15 +318,16 @@ def detect_credit_utilization(user_id: str, window_days: int = 30) -> Dict[str, 
                           and txn.get('amount', 0) < 0
                           and cutoff_date <= txn.get('date', '')]
             total_interest = sum(abs(txn.get('amount', 0)) for txn in account_txns
-                               if 'interest' in str(txn.get('category', '')).lower() 
+                               if category_contains(txn.get('category', ''), 'interest')
                                or 'interest' in str(txn.get('merchant_name', '')).lower()
-                               or 'fee' in str(txn.get('category', '')).lower())
+                               or category_contains(txn.get('category', ''), 'fee'))
             interest_map[account_id] = total_interest
     else:
         # SQLite path
         placeholders = ",".join(["?"] * len(account_ids))
         payments_query = f"""
-            SELECT account_id, date, amount, merchant_name, category
+            SELECT account_id, date, amount, merchant_name, category,
+                   payment_channel, authorized_date, iso_currency_code
             FROM transactions
             WHERE account_id IN ({placeholders}) 
             AND date >= ? 
@@ -300,17 +336,55 @@ def detect_credit_utilization(user_id: str, window_days: int = 30) -> Dict[str, 
         """
         payments = db.fetch_all(payments_query, tuple(account_ids) + (cutoff_date,))
         
-        interest_query = f"""
-            SELECT account_id, SUM(amount) as total_interest
+        # Get spending transactions for payment channel analysis
+        spending_query = f"""
+            SELECT account_id, amount, payment_channel
             FROM transactions
             WHERE account_id IN ({placeholders})
             AND date >= ?
             AND amount < 0
-            AND (category LIKE '%interest%' OR merchant_name LIKE '%interest%' OR category LIKE '%fee%')
-            GROUP BY account_id
         """
-        interest_charges = db.fetch_all(interest_query, tuple(account_ids) + (cutoff_date,))
-        interest_map = {row["account_id"]: abs(row["total_interest"] or 0) for row in interest_charges}
+        spending_txns = db.fetch_all(spending_query, tuple(account_ids) + (cutoff_date,))
+        
+        # Fetch transactions and filter by category in Python (handles JSON arrays)
+        interest_query = f"""
+            SELECT account_id, amount, merchant_name, category,
+                   payment_channel, authorized_date, iso_currency_code
+            FROM transactions
+            WHERE account_id IN ({placeholders})
+            AND date >= ?
+            AND amount < 0
+        """
+        all_transactions = db.fetch_all(interest_query, tuple(account_ids) + (cutoff_date,))
+        
+        # Filter transactions by category using category_contains (handles JSON arrays)
+        interest_by_account = defaultdict(float)
+        for txn in all_transactions:
+            account_id = txn["account_id"]
+            category = txn.get("category", "")
+            merchant_name = str(txn.get("merchant_name", "")).lower()
+            
+            # Check if transaction is interest or fee related
+            is_interest = (category_contains(category, 'interest') or 
+                          category_contains(category, 'fee') or
+                          'interest' in merchant_name)
+            
+            if is_interest:
+                interest_by_account[account_id] += abs(txn["amount"])
+        
+        interest_map = dict(interest_by_account)
+    
+    # Calculate payment channel distribution (online vs in-store)
+    total_spending = 0.0
+    online_spending = 0.0
+    
+    for txn in spending_txns:
+        amount = abs(txn.get("amount", 0))
+        total_spending += amount
+        if txn.get("payment_channel") == "online":
+            online_spending += amount
+    
+    online_spending_share = (online_spending / total_spending * 100) if total_spending > 0 else 0.0
     
     # Calculate utilization for each account
     accounts_detail = []
@@ -331,10 +405,14 @@ def detect_credit_utilization(user_id: str, window_days: int = 30) -> Dict[str, 
         # Check if only minimum payments (heuristic: payment amount is small relative to balance)
         minimum_payment_only = False
         if account_payments:
+            # Use authorized_date if available for more accurate payment timing
+            recent_payment = account_payments[0]
+            payment_date = recent_payment.get("authorized_date") or recent_payment["date"]
+            
             # Estimate minimum payment as ~2% of balance or $25, whichever is higher
             estimated_min = max(balance * 0.02, 25.0)
-            recent_payment = account_payments[0]["amount"]
-            if abs(recent_payment - estimated_min) <= 5.0:
+            payment_amount = recent_payment["amount"]
+            if abs(payment_amount - estimated_min) <= 5.0:
                 minimum_payment_only = True
         
         interest_charged = interest_map.get(account_id, 0.0)
@@ -376,7 +454,8 @@ def detect_credit_utilization(user_id: str, window_days: int = 30) -> Dict[str, 
         "accounts": accounts_detail,
         "interest_charged": round(total_interest, 2),
         "minimum_payment_only": any_minimum_only,
-        "is_overdue": is_overdue
+        "is_overdue": is_overdue,
+        "online_spending_share": round(online_spending_share, 2)
     }
 
 
@@ -386,6 +465,7 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
     Logic:
     - Identify savings accounts (type = savings, money market, HSA)
     - Calculate net inflow (deposits - withdrawals)
+    - Filter out travel-related transactions (location changes)
     - Calculate growth rate: (current - 180d_ago) / 180d_ago
     - Calculate emergency fund coverage: savings / avg_monthly_expenses
     - Assign coverage flag: excellent/good/building/low
@@ -397,11 +477,12 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
     Returns:
         Dictionary with savings behavior signals:
         - total_savings: Total balance across all savings accounts
-        - net_inflow: Net deposits minus withdrawals in window
+        - net_inflow: Net deposits minus withdrawals in window (excluding travel)
         - growth_rate: Percentage growth rate
         - emergency_fund_coverage: Months of expenses covered
         - coverage_level: "excellent", "good", "building", or "low"
         - accounts: List of account-level details
+        - travel_filtered_transactions: Count of transactions filtered due to location changes
     """
     cutoff_date = _get_date_window_days_ago(window_days)
     
@@ -418,7 +499,8 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
             "growth_rate": 0.0,
             "emergency_fund_coverage": 0.0,
             "coverage_level": "low",
-            "accounts": []
+            "accounts": [],
+            "travel_filtered_transactions": 0
         }
     
     # Get historical balance if available (we'll use current balance as proxy)
@@ -433,21 +515,55 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
     else:
         placeholders = ",".join(["?"] * len(account_ids))
         transactions_query = f"""
-            SELECT account_id, date, amount
+            SELECT account_id, date, amount, location_city, location_region, iso_currency_code
             FROM transactions
             WHERE account_id IN ({placeholders}) AND date >= ?
             ORDER BY date
         """
         transactions = db.fetch_all(transactions_query, tuple(account_ids) + (cutoff_date,))
     
-    # Calculate net inflow
+    # Calculate net inflow, filtering out travel-related transactions
     net_inflow = 0.0
     account_flows = defaultdict(float)
+    travel_filtered_count = 0
+    
+    # Track location changes to identify travel
+    user_locations = set()  # Track all unique locations seen
+    previous_location = None
     
     for tx in transactions:
         amount = tx["amount"]
-        account_flows[tx["account_id"]] += amount
-        net_inflow += amount
+        account_id = tx["account_id"]
+        
+        # Check for location change (travel detection)
+        location_city = tx.get("location_city")
+        location_region = tx.get("location_region")
+        
+        # Build location key
+        location_key = None
+        if location_city and location_region:
+            location_key = f"{location_city},{location_region}"
+        elif location_city:
+            location_key = location_city
+        
+        # If we have location info and it differs from previous, likely travel
+        is_travel_transaction = False
+        if location_key and previous_location and location_key != previous_location:
+            # Only filter if it's a significant change (different city/region)
+            # Don't filter first transaction
+            if location_key not in user_locations:
+                is_travel_transaction = True
+                travel_filtered_count += 1
+        
+        # Update location tracking
+        if location_key:
+            user_locations.add(location_key)
+            previous_location = location_key
+        
+        # Only count non-travel transactions for savings calculations
+        if not is_travel_transaction:
+            account_flows[account_id] += amount
+            net_inflow += amount
     
     # Get current total savings
     total_savings = sum(acc["balance"] or 0.0 for acc in savings_accounts)
@@ -524,7 +640,8 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
         "emergency_fund_coverage": round(emergency_fund_coverage, 2),
         "coverage_level": coverage_level,
         "accounts": accounts_detail,
-        "avg_monthly_expenses": round(avg_monthly_expenses, 2)
+        "avg_monthly_expenses": round(avg_monthly_expenses, 2),
+        "travel_filtered_transactions": travel_filtered_count
     }
 
 
@@ -576,23 +693,47 @@ def detect_income_stability(user_id: str, window_days: int = 180) -> Dict[str, A
         payroll_transactions = [DictRow(txn) for txn in all_txns 
                               if txn.get('account_id') == account_id 
                               and txn.get('amount', 0) > 0
+                              and (txn.get('iso_currency_code') == 'USD' or txn.get('iso_currency_code') is None)
                               and (txn.get('amount', 0) > 500 
                                    or 'payroll' in str(txn.get('merchant_name', '')).lower()
                                    or 'employer' in str(txn.get('merchant_name', '')).lower()
-                                   or 'income' in str(txn.get('category', '')).lower()
+                                   or category_contains(txn.get('category', ''), 'income')
                                    or 'salary' in str(txn.get('merchant_name', '')).lower())]
     else:
+        # Fetch transactions and filter in Python (handles JSON arrays in category)
         payroll_query = """
-            SELECT date, amount, merchant_name, category
+            SELECT date, amount, merchant_name, category,
+                   authorized_date, iso_currency_code, payment_channel
             FROM transactions
             WHERE account_id = ? 
             AND date >= ?
             AND amount > 0
-            AND (amount > 500 OR merchant_name LIKE '%payroll%' OR merchant_name LIKE '%employer%' 
-                 OR category LIKE '%income%' OR merchant_name LIKE '%salary%')
             ORDER BY date
         """
-        payroll_transactions = db.fetch_all(payroll_query, (account_id, cutoff_date))
+        all_transactions = db.fetch_all(payroll_query, (account_id, cutoff_date))
+        
+        # Filter payroll transactions using category_contains (handles JSON arrays)
+        # Also filter by USD currency and use authorized_date when available
+        payroll_transactions = []
+        for txn in all_transactions:
+            amount = txn.get("amount", 0)
+            merchant_name = str(txn.get("merchant_name", "")).lower()
+            category = txn.get("category", "")
+            iso_currency = txn.get("iso_currency_code")
+            
+            # Filter out non-USD transactions (unless currency is NULL/not set)
+            if iso_currency and iso_currency != 'USD':
+                continue
+            
+            # Check if transaction matches payroll criteria
+            is_payroll = (amount > 500 or
+                         'payroll' in merchant_name or
+                         'employer' in merchant_name or
+                         'salary' in merchant_name or
+                         category_contains(category, 'income'))
+            
+            if is_payroll:
+                payroll_transactions.append(txn)
     
     if len(payroll_transactions) < 2:
         return {
@@ -605,7 +746,12 @@ def detect_income_stability(user_id: str, window_days: int = 180) -> Dict[str, A
         }
     
     # Calculate intervals between paychecks
-    pay_dates = [_parse_date(tx["date"]) for tx in payroll_transactions]
+    # Use authorized_date if available, fall back to date for more accurate timing
+    pay_dates = []
+    for tx in payroll_transactions:
+        tx_date = tx.get("authorized_date") or tx["date"]
+        pay_dates.append(_parse_date(tx_date))
+    
     pay_amounts = [tx["amount"] for tx in payroll_transactions]
     
     intervals = []
