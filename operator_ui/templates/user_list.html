@@ -3,134 +3,629 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SpendSense - User List</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>SpendSense Operator - User List</title>
     <style>
-        .search-input {
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            background: #FFFFFF;
+            color: #1a1a1a;
+            line-height: 1.6;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 240px;
+            background: #FFFFFF;
+            border-right: 2px dashed #e5e7eb;
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px dashed #e5e7eb;
+            margin-bottom: 20px;
+        }
+        
+        .sidebar-logo {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #1e40af;
+            margin-bottom: 4px;
+        }
+        
+        .sidebar-tagline {
+            font-size: 10px;
+            color: #64748b;
+            letter-spacing: 0.5px;
+        }
+        
+        .sidebar-nav {
+            flex: 1;
+            padding: 0 10px;
+        }
+        
+        .nav-item {
+            display: block;
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-decoration: none;
+            border-left: 3px solid transparent;
+            margin-bottom: 4px;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+        }
+        
+        .nav-item:hover {
+            background: #f9fafb;
+            color: #1e40af;
+            border-left-color: #e5e7eb;
+        }
+        
+        .nav-item.active {
+            background: #eff6ff;
+            color: #1e40af;
+            border-left-color: #1e40af;
+        }
+        
+        /* Compact AI Chat Helper (Sidebar) */
+        .chat-helper {
+            margin-top: auto;
+            padding: 16px;
+            border-top: 1px dashed #e5e7eb;
+        }
+        
+        .chat-helper-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        
+        .chat-input {
+            width: 100%;
+            padding: 8px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            border: 1px solid #e5e7eb;
+            background: #f9fafb;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            border-color: #FFD700;
+            background: #FFFFFF;
+        }
+        
+        .chat-suggestions {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .chat-chip {
+            padding: 4px 8px;
+            font-size: 10px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            color: #64748b;
+            cursor: pointer;
             transition: all 0.2s;
         }
-        .table-row:hover {
-            background-color: #f3f4f6;
+        
+        .chat-chip:hover {
+            border-color: #FFD700;
+            background: #fefce8;
+        }
+        
+        .chat-response {
+            margin-top: 8px;
+            padding: 8px;
+            font-size: 10px;
+            background: #eff6ff;
+            border: 1px solid #e5e7eb;
+            color: #1a1a1a;
+            max-height: 100px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .chat-response.show {
+            display: block;
+        }
+        
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .top-bar {
+            padding: 16px 24px;
+            border-bottom: 2px dashed #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #FFFFFF;
+        }
+        
+        .top-bar-title {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #1e40af;
+        }
+        
+        .top-bar-actions {
+            display: flex;
+            gap: 16px;
+            font-size: 11px;
+            color: #64748b;
+        }
+        
+        .top-bar-link {
+            color: #64748b;
+            text-decoration: none;
+            padding: 4px 8px;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .top-bar-link:hover {
+            color: #1e40af;
+            border-color: #e5e7eb;
+        }
+        
+        /* Content Area */
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            background: #f9fafb;
+        }
+        
+        /* Search and Filters */
+        .filters-bar {
+            background: #FFFFFF;
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            border: 1px solid #e5e7eb;
+            background: #FFFFFF;
+            color: #1a1a1a;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #FFD700;
+        }
+        
+        .filter-select {
+            padding: 8px 12px;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            border: 1px solid #e5e7eb;
+            background: #FFFFFF;
+            color: #1a1a1a;
+        }
+        
+        /* Summary Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: #FFFFFF;
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1a1a1a;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        /* Table */
+        .table-container {
+            background: #FFFFFF;
+            border: 1px solid #e5e7eb;
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        
+        thead {
+            background: #f9fafb;
+            border-bottom: 2px dashed #e5e7eb;
+        }
+        
+        th {
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 10px;
+            cursor: pointer;
+        }
+        
+        th:hover {
+            background: #f3f4f6;
+        }
+        
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px dashed #e5e7eb;
+            color: #1a1a1a;
+        }
+        
+        tr:hover {
+            background: #f9fafb;
+        }
+        
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            font-size: 10px;
+            font-weight: 600;
+            border: 1px solid;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .badge-high-utilization {
+            color: #ef4444;
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+        
+        .badge-subscription-heavy {
+            color: #a855f7;
+            border-color: #a855f7;
+            background: #faf5ff;
+        }
+        
+        .badge-variable-income {
+            color: #f59e0b;
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }
+        
+        .badge-savings-builder {
+            color: #10b981;
+            border-color: #10b981;
+            background: #ecfdf5;
+        }
+        
+        .badge-general-wellness {
+            color: #3b82f6;
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        
+        /* Risk Flag */
+        .risk-flag {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+        
+        /* Button */
+        .btn {
+            display: inline-block;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid #1e40af;
+            background: #1e40af;
+            color: #FFFFFF;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'JetBrains Mono', monospace;
+            text-decoration: none;
+        }
+        
+        .btn:hover {
+            background: #1e3a8a;
+            border-color: #1e3a8a;
+        }
+        
+        .btn-outline {
+            background: #FFFFFF;
+            color: #1e40af;
+        }
+        
+        .btn-outline:hover {
+            background: #eff6ff;
+        }
+        
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: #FFFFFF;
+            border-top: 1px dashed #e5e7eb;
+            font-size: 11px;
+            color: #64748b;
+        }
+        
+        .pagination-info {
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .pagination-controls {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .pagination-btn {
+            padding: 6px 12px;
+            font-size: 11px;
+            border: 1px solid #e5e7eb;
+            background: #FFFFFF;
+            color: #64748b;
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.2s;
+        }
+        
+        .pagination-btn:hover:not(:disabled) {
+            border-color: #FFD700;
+            color: #1e40af;
+        }
+        
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* User ID styling */
+        .user-id {
+            font-size: 10px;
+            color: #64748b;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        /* Time styling */
+        .time-ago {
+            font-size: 11px;
+            color: #64748b;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        /* Loading State */
+        .loading-state {
+            text-align: center;
+            padding: 48px;
+            color: #64748b;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 3px solid #e5e7eb;
+            border-top-color: #1e40af;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Error State */
+        .error-state {
+            background: #fef2f2;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            font-size: 12px;
+        }
+        
+        .hidden {
+            display: none !important;
         }
     </style>
 </head>
-<body class="bg-gray-50">
-    <div class="container mx-auto px-4 py-8">
-        <div class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">SpendSense Operator View</h1>
-            <p class="text-gray-600">User List</p>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">SPENDSENSE</div>
+            <div class="sidebar-tagline">OPERATOR VIEW</div>
         </div>
-
-        <!-- Search and Filter -->
-        <div class="mb-6 flex gap-4">
-            <div class="flex-1">
-                <input 
-                    type="text" 
-                    id="searchInput" 
-                    placeholder="Search by name or user ID..." 
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent search-input"
-                >
-            </div>
-            <select id="personaFilter" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                <option value="">All Personas</option>
-                <option value="high_utilization">High Utilization</option>
-                <option value="variable_income">Variable Income</option>
-                <option value="subscription_heavy">Subscription Heavy</option>
-                <option value="savings_builder">Savings Builder</option>
-                <option value="general_wellness">General Wellness</option>
-            </select>
-        </div>
-
-        <!-- Loading State -->
-        <div id="loadingState" class="text-center py-12">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p class="mt-4 text-gray-600">Loading users...</p>
-        </div>
-
-        <!-- Error State -->
-        <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-            <p id="errorMessage"></p>
-        </div>
-
-        <!-- Summary Stats -->
-        <div id="summaryStats" class="hidden grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-white p-4 rounded-lg shadow">
-                <div class="text-sm text-gray-600">Total Users</div>
-                <div class="text-2xl font-bold text-gray-900" id="totalUsers">0</div>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <div class="text-sm text-gray-600">Users by Persona</div>
-                <div class="text-xs text-gray-500 mt-1" id="usersByPersona">-</div>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <div class="text-sm text-gray-600">Avg Behaviors</div>
-                <div class="text-2xl font-bold text-gray-900" id="avgBehaviors">0</div>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <div class="text-sm text-gray-600">Avg Recommendations</div>
-                <div class="text-2xl font-bold text-gray-900" id="avgRecommendations">0</div>
+        
+        <nav class="sidebar-nav">
+            <a href="user_list.html" class="nav-item active">USER LIST</a>
+            <a href="analytics.html" class="nav-item">ANALYTICS</a>
+            <a href="decision_traces.html" class="nav-item">DECISION TRACES</a>
+            <a href="settings.html" class="nav-item">SETTINGS</a>
+        </nav>
+        
+        <!-- Compact AI Chat Helper -->
+        <div class="chat-helper">
+            <div class="chat-helper-title">AI HELPER</div>
+            <input type="text" id="chatInput" class="chat-input" placeholder="Ask about data..." onkeypress="handleChatKeyPress(event)">
+            <div class="chat-response" id="chatResponse"></div>
+            <div class="chat-suggestions">
+                <div class="chat-chip" onclick="sendChatMessage('Show high utilization users')">Show high utilization users</div>
+                <div class="chat-chip" onclick="sendChatMessage('Find inactive users')">Find inactive users</div>
+                <div class="chat-chip" onclick="sendChatMessage('Explain persona match')">Explain persona match</div>
             </div>
         </div>
-
-        <!-- Pagination -->
-        <div id="paginationContainer" class="hidden flex items-center justify-between mt-4 mb-4">
-            <div class="text-sm text-gray-700">
-                Showing <span id="paginationStart">0</span> to <span id="paginationEnd">0</span> of <span id="paginationTotal">0</span> users
-            </div>
-            <div class="flex gap-2">
-                <button id="prevPageBtn" onclick="changePage(-1)" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                    Previous
-                </button>
-                <span class="px-4 py-2 text-sm text-gray-700">
-                    Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
-                </span>
-                <button id="nextPageBtn" onclick="changePage(1)" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                    Next
-                </button>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="top-bar">
+            <div class="top-bar-title">USER MANAGEMENT</div>
+            <div class="top-bar-actions">
+                <a href="analytics.html" class="top-bar-link">ANALYTICS</a>
+                <a href="#" class="top-bar-link" onclick="exportCSV(); return false;">EXPORT</a>
+                <a href="#" class="top-bar-link">VIEW AS USER</a>
             </div>
         </div>
-
-        <!-- User Table -->
-        <div id="tableContainer" class="hidden bg-white rounded-lg shadow overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+        
+        <div class="content-area">
+            <!-- Filters -->
+            <div class="filters-bar">
+                <input type="text" id="searchInput" class="search-input" placeholder="Search by name or user ID...">
+                <select id="personaFilter" class="filter-select">
+                    <option value="">All Personas</option>
+                    <option value="high_utilization">High Utilization</option>
+                    <option value="variable_income">Variable Income</option>
+                    <option value="subscription_heavy">Subscription Heavy</option>
+                    <option value="savings_builder">Savings Builder</option>
+                    <option value="general_wellness">General Wellness</option>
+                </select>
+            </div>
+            
+            <!-- Loading State -->
+            <div id="loadingState" class="loading-state">
+                <div class="loading-spinner"></div>
+                <p style="margin-top: 16px;">Loading users...</p>
+            </div>
+            
+            <!-- Error State -->
+            <div id="errorState" class="hidden error-state">
+                <p id="errorMessage"></p>
+            </div>
+            
+            <!-- Summary Stats -->
+            <div id="summaryStats" class="hidden stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Users</div>
+                    <div class="stat-value" id="totalUsers">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Behaviors</div>
+                    <div class="stat-value" id="avgBehaviors">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Recommendations</div>
+                    <div class="stat-value" id="avgRecommendations">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Risk Flags</div>
+                    <div class="stat-value" id="totalFlagged">0</div>
+                </div>
+            </div>
+            
+            <!-- User Table -->
+            <div id="tableContainer" class="hidden table-container">
+                <table>
+                    <thead>
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('name')">
-                                Name
-                                <span id="sort-name" class="ml-1">↕</span>
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('persona')">
-                                Persona (30d)
-                                <span id="sort-persona" class="ml-1">↕</span>
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('behaviors')">
-                                # Behaviors
-                                <span id="sort-behaviors" class="ml-1">↕</span>
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('recommendations')">
-                                # Recommendations
-                                <span id="sort-recommendations" class="ml-1">↕</span>
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
-                            </th>
+                            <th onclick="sortTable('name')">Name <span id="sort-name">↕</span></th>
+                            <th onclick="sortTable('persona')">Persona (30d) <span id="sort-persona">↕</span></th>
+                            <th onclick="sortTable('behaviors')"># Behaviors <span id="sort-behaviors">↕</span></th>
+                            <th onclick="sortTable('recommendations')"># Recommendations <span id="sort-recommendations">↕</span></th>
+                            <th onclick="sortTable('flagged')">Risk Flags <span id="sort-flagged">↕</span></th>
+                            <th onclick="sortTable('last_active')">Last Active <span id="sort-last_active">↕</span></th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="userTableBody" class="bg-white divide-y divide-gray-200">
+                    <tbody id="userTableBody">
                         <!-- Table rows will be inserted here -->
                     </tbody>
                 </table>
             </div>
+            
+            <!-- Empty State -->
+            <div id="emptyState" class="hidden" style="text-align: center; padding: 48px; color: #64748b;">
+                <p>No users found.</p>
+            </div>
+            
+            <!-- Pagination -->
+            <div id="paginationContainer" class="hidden pagination">
+                <div class="pagination-info">
+                    Showing <strong id="paginationStart">0</strong> to <strong id="paginationEnd">0</strong> of <strong id="paginationTotal">0</strong> users
+                </div>
+                <div class="pagination-controls">
+                    <button class="pagination-btn" id="prevPageBtn" onclick="changePage(-1)" disabled>PREV</button>
+                    <span style="padding: 6px 12px; font-size: 11px; color: #64748b;">
+                        Page <strong id="currentPage">1</strong> of <strong id="totalPages">1</strong>
+                    </span>
+                    <button class="pagination-btn" id="nextPageBtn" onclick="changePage(1)" disabled>NEXT</button>
+                </div>
+            </div>
         </div>
-
-        <!-- Empty State -->
-        <div id="emptyState" class="hidden text-center py-12">
-            <p class="text-gray-600">No users found.</p>
-        </div>
-    </div>
+    </main>
 
     <script>
+        // Auth check - redirect to login if not authenticated
+        async function checkAuth() {
+            const token = sessionStorage.getItem('auth_token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return null;
+            }
+            return token;
+        }
+        
+        // Check auth on page load
+        checkAuth();
+        
         const API_BASE_URL = 'http://localhost:8000';
         let currentPage = 1;
         let pageLimit = 50;
@@ -138,6 +633,8 @@
         let sortColumn = null;
         let sortDirection = 'asc';
         let searchTimeout = null;
+        let allUsers = []; // Store all users for CSV export
+        let defaultUserId = 'user_001'; // Default user_id for chat
 
         // Get URL parameters
         function getUrlParams() {
@@ -163,9 +660,35 @@
             window.history.pushState({}, '', url);
         }
 
+        // Format relative time
+        function formatRelativeTime(dateString) {
+            if (!dateString) return 'N/A';
+            try {
+                const date = new Date(dateString);
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMs / 3600000);
+                const diffDays = Math.floor(diffMs / 86400000);
+                
+                if (diffMins < 60) {
+                    return `${diffMins}m ago`;
+                } else if (diffHours < 24) {
+                    return `${diffHours}h ago`;
+                } else {
+                    return `${diffDays}d ago`;
+                }
+            } catch (e) {
+                return 'N/A';
+            }
+        }
+
         // Fetch users from API
         async function fetchUsers() {
             try {
+                document.getElementById('loadingState').classList.remove('hidden');
+                document.getElementById('errorState').classList.add('hidden');
+                
                 const params = getUrlParams();
                 currentPage = params.page;
                 pageLimit = params.limit;
@@ -186,6 +709,9 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
+                
+                // Store all users for CSV export (before pagination)
+                allUsers = data.users || [];
                 
                 renderTable(data.users || []);
                 updateSummaryStats(data.summary || {});
@@ -229,12 +755,20 @@
                             bVal = (b.persona_30d || '').toLowerCase();
                             break;
                         case 'behaviors':
-                            aVal = a.behavior_count;
-                            bVal = b.behavior_count;
+                            aVal = a.behavior_count || 0;
+                            bVal = b.behavior_count || 0;
                             break;
                         case 'recommendations':
-                            aVal = a.recommendation_count;
-                            bVal = b.recommendation_count;
+                            aVal = a.recommendation_count || 0;
+                            bVal = b.recommendation_count || 0;
+                            break;
+                        case 'flagged':
+                            aVal = a.flagged ? 1 : 0;
+                            bVal = b.flagged ? 1 : 0;
+                            break;
+                        case 'last_active':
+                            aVal = a.created_at ? new Date(a.created_at).getTime() : 0;
+                            bVal = b.created_at ? new Date(b.created_at).getTime() : 0;
                             break;
                         default:
                             return 0;
@@ -250,30 +784,25 @@
                     ? user.persona_30d.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
                     : 'None';
                 
+                const personaBadgeClass = getPersonaBadgeClass(user.persona_30d);
+                const riskFlag = user.flagged ? '<span class="risk-flag"></span>' : '-';
+                const lastActive = formatRelativeTime(user.created_at);
+                
                 return `
-                    <tr class="table-row">
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-gray-900">${escapeHtml(user.name)}</div>
-                            <div class="text-sm text-gray-500">${escapeHtml(user.user_id)}</div>
+                    <tr>
+                        <td>
+                            <div>${escapeHtml(user.name || 'Unknown')}</div>
+                            <div class="user-id">${escapeHtml(user.user_id)}</div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                getPersonaBadgeClass(user.persona_30d)
-                            }">
-                                ${escapeHtml(personaDisplay)}
-                            </span>
+                        <td>
+                            <span class="badge ${personaBadgeClass}">${escapeHtml(personaDisplay)}</span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            ${user.behavior_count}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            ${user.recommendation_count}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <a href="user_detail.html?user_id=${encodeURIComponent(user.user_id)}" 
-                               class="text-blue-600 hover:text-blue-900">
-                                View Details
-                            </a>
+                        <td>${user.behavior_count || 0}</td>
+                        <td>${user.recommendation_count || 0}</td>
+                        <td>${riskFlag}</td>
+                        <td class="time-ago">${lastActive}</td>
+                        <td>
+                            <a href="user_detail.html?user_id=${encodeURIComponent(user.user_id)}" class="btn btn-outline">VIEW</a>
                         </td>
                     </tr>
                 `;
@@ -285,13 +814,7 @@
             document.getElementById('totalUsers').textContent = summary.total_users || 0;
             document.getElementById('avgBehaviors').textContent = summary.avg_behaviors || '0';
             document.getElementById('avgRecommendations').textContent = summary.avg_recommendations || '0';
-            
-            // Display users by persona
-            const usersByPersona = summary.users_by_persona || {};
-            const personaText = Object.entries(usersByPersona)
-                .map(([persona, count]) => `${persona.replace(/_/g, ' ')}: ${count}`)
-                .join(', ') || 'None';
-            document.getElementById('usersByPersona').textContent = personaText;
+            document.getElementById('totalFlagged').textContent = summary.total_flagged || 0;
             
             document.getElementById('summaryStats').classList.remove('hidden');
         }
@@ -358,30 +881,119 @@
             
             // Set current sort indicator
             const indicator = document.getElementById(`sort-${column}`);
-            indicator.textContent = sortDirection === 'asc' ? '↑' : '↓';
+            if (indicator) {
+                indicator.textContent = sortDirection === 'asc' ? '↑' : '↓';
+            }
             
             // Re-render table with current data
-            const params = getUrlParams();
             fetchUsers();
         }
 
         // Get persona badge color class
         function getPersonaBadgeClass(persona) {
             const colors = {
-                'high_utilization': 'bg-red-100 text-red-800',
-                'variable_income': 'bg-yellow-100 text-yellow-800',
-                'subscription_heavy': 'bg-purple-100 text-purple-800',
-                'savings_builder': 'bg-green-100 text-green-800',
-                'general_wellness': 'bg-blue-100 text-blue-800'
+                'high_utilization': 'badge-high-utilization',
+                'variable_income': 'badge-variable-income',
+                'subscription_heavy': 'badge-subscription-heavy',
+                'savings_builder': 'badge-savings-builder',
+                'general_wellness': 'badge-general-wellness'
             };
-            return colors[persona] || 'bg-gray-100 text-gray-800';
+            return colors[persona] || 'badge-high-utilization';
         }
 
         // Escape HTML to prevent XSS
         function escapeHtml(text) {
+            if (text == null) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // CSV Export
+        function exportCSV() {
+            if (allUsers.length === 0) {
+                alert('No users to export');
+                return;
+            }
+            
+            const headers = ['Name', 'User ID', 'Persona (30d)', 'Behaviors', 'Recommendations', 'Risk Flags', 'Last Active'];
+            const rows = allUsers.map(user => {
+                const personaDisplay = user.persona_30d 
+                    ? user.persona_30d.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                    : 'None';
+                const riskFlag = user.flagged ? 'Yes' : 'No';
+                const lastActive = formatRelativeTime(user.created_at);
+                
+                return [
+                    user.name || 'Unknown',
+                    user.user_id,
+                    personaDisplay,
+                    user.behavior_count || 0,
+                    user.recommendation_count || 0,
+                    riskFlag,
+                    lastActive
+                ];
+            });
+            
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            ].join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `users_export_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // AI Chat Helper
+        async function sendChatMessage(message) {
+            if (!message) {
+                message = document.getElementById('chatInput').value.trim();
+            }
+            if (!message) return;
+            
+            const chatInput = document.getElementById('chatInput');
+            const chatResponse = document.getElementById('chatResponse');
+            
+            chatInput.value = '';
+            chatResponse.classList.add('show');
+            chatResponse.textContent = 'Thinking...';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: defaultUserId,
+                        message: message
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const responseText = data.data?.response || 'No response received';
+                chatResponse.textContent = responseText.substring(0, 300) + (responseText.length > 300 ? '...' : '');
+            } catch (error) {
+                console.error('Error sending chat message:', error);
+                chatResponse.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        function handleChatKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendChatMessage();
+            }
         }
 
         // Event listeners
@@ -393,4 +1005,3 @@
     </script>
 </body>
 </html>
-

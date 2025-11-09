@@ -129,7 +129,7 @@ def pivot_features_to_wide(features_df: pd.DataFrame) -> pd.DataFrame:
     return pivoted
 
 
-def store_personas_vectorized(personas_df: pd.DataFrame) -> int:
+def store_personas_vectorized(personas_df: pd.DataFrame, use_sqlite: bool = False) -> int:
     """Batch write persona assignments to database.
     
     Args:
@@ -137,11 +137,14 @@ def store_personas_vectorized(personas_df: pd.DataFrame) -> int:
                     match_high_utilization, match_variable_income, match_subscription_heavy,
                     match_savings_builder, match_general_wellness, primary_persona,
                     criteria_met, match_percentages, criteria_details
+        use_sqlite: If True, force use of SQLite even if Firestore is available
         
     Returns:
         Number of persona assignments stored
     """
-    if USE_FIRESTORE:
+    # Check if we should use Firestore (unless explicitly told to use SQLite)
+    use_firestore = USE_FIRESTORE and not use_sqlite
+    if use_firestore:
         print("Error: Vectorized operations require SQLite database.")
         return 0
     
@@ -290,7 +293,7 @@ def assign_all_users_vectorized(time_windows: List[str] = None,
     
     # Store persona assignments
     store_start = datetime.now()
-    stored_count = store_personas_vectorized(personas_df)
+    stored_count = store_personas_vectorized(personas_df, use_sqlite=use_sqlite)
     store_time = (datetime.now() - store_start).total_seconds()
     
     if verbose:

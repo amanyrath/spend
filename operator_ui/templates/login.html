@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpendSense Operator Login</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            background: #f9fafb;
+            color: #1a1a1a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .login-card {
+            background: #FFFFFF;
+            border: 2px solid #1e40af;
+            padding: 32px;
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .login-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e40af;
+            text-align: center;
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+        }
+        
+        .login-subtitle {
+            font-size: 10px;
+            color: #64748b;
+            text-align: center;
+            letter-spacing: 1px;
+            margin-bottom: 32px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #1e40af;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #1e40af;
+            color: #FFFFFF;
+            border: none;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+        
+        button:hover:not(:disabled) {
+            background: #1e3a8a;
+        }
+        
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        
+        .error {
+            background: #fef2f2;
+            border: 2px solid #ef4444;
+            padding: 12px;
+            font-size: 12px;
+            color: #991b1b;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .error.show {
+            display: block;
+        }
+        
+        .demo-hint {
+            font-size: 11px;
+            color: #94a3b8;
+            text-align: center;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-title">SPENDSENSE</div>
+        <div class="login-subtitle">OPERATOR ACCESS</div>
+        
+        <div id="error" class="error"></div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">EMAIL</label>
+                <input type="email" id="email" placeholder="operator@demo.com" required>
+            </div>
+            <div class="form-group">
+                <label for="password">PASSWORD</label>
+                <input type="password" id="password" placeholder="Enter password" required>
+            </div>
+            <button type="submit" id="submitBtn">SIGN IN</button>
+        </form>
+        
+        <div class="demo-hint">
+            Demo: operator@demo.com / demo123
+        </div>
+    </div>
+    
+    <script>
+        // Check if Firebase is configured (for local dev with SQLite, Firebase is optional)
+        const FIREBASE_CONFIG = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID"
+        };
+        
+        const isFirebaseConfigured = 
+            FIREBASE_CONFIG.apiKey && 
+            FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY" &&
+            FIREBASE_CONFIG.apiKey.trim().length > 0;
+        
+        let firebaseApp = null;
+        
+        if (isFirebaseConfigured) {
+            try {
+                firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
+                console.log('Firebase initialized');
+            } catch (error) {
+                console.warn('Firebase initialization failed:', error);
+                firebaseApp = null;
+            }
+        } else {
+            console.log('Firebase not configured - using local dev mode');
+        }
+        
+        const form = document.getElementById('loginForm');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const submitBtn = document.getElementById('submitBtn');
+        const errorDiv = document.getElementById('error');
+        
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+        }
+        
+        function hideError() {
+            errorDiv.classList.remove('show');
+        }
+        
+        // Local dev bypass login
+        function localDevLogin(email) {
+            // Store mock auth token for local development
+            sessionStorage.setItem('auth_token', 'local-dev-token');
+            sessionStorage.setItem('user_uid', 'local-dev-operator');
+            sessionStorage.setItem('user_email', email);
+            sessionStorage.setItem('local_dev', 'true');
+            console.log('Local dev login successful');
+            window.location.href = 'user_list.html';
+        }
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError();
+            
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'SIGNING IN...';
+            
+            // If Firebase is not configured, use local dev bypass
+            if (!firebaseApp || !isFirebaseConfigured) {
+                // Allow any email/password for local dev
+                setTimeout(() => {
+                    localDevLogin(email);
+                }, 500); // Small delay for UX
+                return;
+            }
+            
+            // Firebase authentication
+            try {
+                const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
+                const user = userCredential.user;
+                
+                // Check if user is operator
+                const doc = await firebase.firestore().collection('users').doc(user.uid).get();
+                const userData = doc.data();
+                
+                if (!userData || userData.role !== 'operator') {
+                    await firebase.auth().signOut();
+                    showError('Access denied: Operator role required');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'SIGN IN';
+                    return;
+                }
+                
+                // Store token and redirect
+                const token = await user.getIdToken();
+                sessionStorage.setItem('auth_token', token);
+                sessionStorage.setItem('user_uid', user.uid);
+                window.location.href = 'user_list.html';
+            } catch (error) {
+                showError('Login failed: ' + error.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'SIGN IN';
+            }
+        });
+    </script>
+</body>
+</html>
+
+
+

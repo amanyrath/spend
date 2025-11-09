@@ -21,7 +21,7 @@ import time
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.database import db
-from src.features.signal_detection import store_feature, category_contains
+from src.features.signal_detection import category_contains
 
 # Check if using Firestore
 USE_FIRESTORE = (
@@ -32,11 +32,12 @@ USE_FIRESTORE = (
 )
 
 
-def load_all_transactions(window_days: int = 180) -> pd.DataFrame:
+def load_all_transactions(window_days: int = 180, use_sqlite: bool = False) -> pd.DataFrame:
     """Load all transactions into a pandas DataFrame.
     
     Args:
         window_days: Number of days to look back
+        use_sqlite: If True, force use of SQLite even if Firestore is available
         
     Returns:
         DataFrame with columns: user_id, account_id, date, amount, merchant_name, 
@@ -44,7 +45,9 @@ def load_all_transactions(window_days: int = 180) -> pd.DataFrame:
     """
     cutoff_date = (datetime.now() - timedelta(days=window_days)).strftime("%Y-%m-%d")
     
-    if USE_FIRESTORE:
+    # Check if we should use Firestore (unless explicitly told to use SQLite)
+    use_firestore = USE_FIRESTORE and not use_sqlite
+    if use_firestore:
         # For Firestore, we'd need to load differently
         # For now, fall back to SQLite for vectorized operations
         print("Warning: Firestore detected. Vectorized operations work best with SQLite.")
@@ -92,13 +95,18 @@ def load_all_transactions(window_days: int = 180) -> pd.DataFrame:
     return df
 
 
-def load_all_accounts() -> pd.DataFrame:
+def load_all_accounts(use_sqlite: bool = False) -> pd.DataFrame:
     """Load all accounts into a pandas DataFrame.
     
+    Args:
+        use_sqlite: If True, force use of SQLite even if Firestore is available
+        
     Returns:
         DataFrame with columns: user_id, account_id, type, subtype, balance, limit
     """
-    if USE_FIRESTORE:
+    # Check if we should use Firestore (unless explicitly told to use SQLite)
+    use_firestore = USE_FIRESTORE and not use_sqlite
+    if use_firestore:
         return None
     
     query = """
@@ -394,7 +402,22 @@ def compute_income_stability_vectorized(transactions_df: pd.DataFrame) -> Dict[s
     
     for user_id, user_txns in income_txns.groupby('user_id'):
         # Filter for likely payroll transactions
+        # Require keywords AND exclude savings/transfer patterns
         payroll_mask = user_txns['merchant_name'].str.contains('|'.join(payroll_keywords), case=False, na=False)
+        
+        # Exclude known non-payroll patterns
+        exclude_patterns = ['savings', 'transfer', 'refund', 'tax']
+        exclude_mask = user_txns['merchant_name'].str.contains('|'.join(exclude_patterns), case=False, na=False)
+        
+        # Also check for income category if available
+        if 'category' in user_txns.columns:
+            # Check if category contains income/payroll (simplified check)
+            category_mask = user_txns['category'].astype(str).str.contains('income|payroll', case=False, na=False)
+            payroll_mask = payroll_mask | category_mask
+        
+        # Final mask: has keywords/category AND not excluded
+        payroll_mask = payroll_mask & ~exclude_mask
+        
         payroll_txns = user_txns[payroll_mask]
         
         if len(payroll_txns) < 2:
@@ -415,8 +438,22 @@ def compute_income_stability_vectorized(transactions_df: pd.DataFrame) -> Dict[s
         intervals = np.diff(dates).astype('timedelta64[D]').astype(float)
         median_pay_gap = np.median(intervals) if len(intervals) > 0 else 0
         
-        # Check for irregular frequency (variance in intervals)
-        irregular_frequency = np.std(intervals) > 7 if len(intervals) > 1 else False
+        # Check for irregular frequency using standardized logic
+        # Check if median gap matches known regular patterns
+        if 6 <= median_pay_gap <= 8:  # Weekly
+            irregular_frequency = False
+        elif 13 <= median_pay_gap <= 15:  # Biweekly
+            irregular_frequency = False
+        elif 28 <= median_pay_gap <= 31:  # Monthly
+            irregular_frequency = False
+        else:
+            # If median doesn't match patterns, check variance
+            if len(intervals) > 1:
+                std_dev = np.std(intervals)
+                # High variance indicates irregularity
+                irregular_frequency = std_dev > 7
+            else:
+                irregular_frequency = True  # Default to irregular if unclear
         
         # Calculate cash flow buffer (would need account balance and expenses)
         cash_flow_buffer = 0.0
@@ -438,8 +475,63 @@ def compute_income_stability_vectorized(transactions_df: pd.DataFrame) -> Dict[s
     return results
 
 
+def store_features_vectorized(features_list: List[Dict[str, Any]], use_sqlite: bool = False) -> int:
+    """Batch write features to SQLite database.
+    
+    Args:
+        features_list: List of feature dictionaries, each must have:
+                      {'user_id': str, 'signal_type': str, 'signal_data': dict, 'time_window': str}
+        use_sqlite: If True, force use of SQLite even if Firestore is available
+        
+    Returns:
+        Number of features stored
+    """
+    # Check if we should use Firestore (unless explicitly told to use SQLite)
+    use_firestore = USE_FIRESTORE and not use_sqlite
+    if use_firestore:
+        print("Error: Vectorized operations require SQLite database.")
+        return 0
+    
+    if not features_list:
+        return 0
+    
+    computed_at = datetime.now().isoformat()
+    stored_count = 0
+    
+    with db.get_db_connection() as conn:
+        for feature in features_list:
+            user_id = feature['user_id']
+            signal_type = feature['signal_type']
+            signal_data = feature['signal_data']
+            time_window = feature['time_window']
+            
+            # Serialize signal_data to JSON
+            signal_json = json.dumps(signal_data)
+            
+            # Delete existing feature if it exists
+            delete_query = """
+                DELETE FROM computed_features
+                WHERE user_id = ? AND signal_type = ? AND time_window = ?
+            """
+            conn.execute(delete_query, (user_id, signal_type, time_window))
+            
+            # Insert new feature
+            insert_query = """
+                INSERT INTO computed_features (user_id, time_window, signal_type, signal_data, computed_at)
+                VALUES (?, ?, ?, ?, ?)
+            """
+            
+            conn.execute(insert_query, (user_id, time_window, signal_type, signal_json, computed_at))
+            stored_count += 1
+        
+        conn.commit()
+    
+    return stored_count
+
+
 def compute_all_features_vectorized(window_days: int = 30, time_window: str = "30d", 
-                                    users: List[str] = None, verbose: bool = True):
+                                    users: List[str] = None, verbose: bool = True,
+                                    use_sqlite: bool = False):
     """Compute all features for all users using vectorized pandas operations.
     
     Args:
@@ -447,10 +539,13 @@ def compute_all_features_vectorized(window_days: int = 30, time_window: str = "3
         time_window: Time window string ("30d" or "180d")
         users: Optional list of user_ids to process (None = all users)
         verbose: If True, show progress
+        use_sqlite: If True, force use of SQLite even if Firestore is available
     """
-    if USE_FIRESTORE:
+    # Check if we should use Firestore (unless explicitly told to use SQLite)
+    use_firestore = USE_FIRESTORE and not use_sqlite
+    if use_firestore:
         print("Error: Vectorized operations require SQLite database.")
-        print("Use --sqlite flag or run compute_all.py instead.")
+        print("Use --sqlite flag or pass use_sqlite=True to force SQLite usage.")
         return
     
     if verbose:
@@ -459,8 +554,8 @@ def compute_all_features_vectorized(window_days: int = 30, time_window: str = "3
     start_time = time.time()
     
     # Load all data at once
-    transactions_df = load_all_transactions(window_days)
-    accounts_df = load_all_accounts()
+    transactions_df = load_all_transactions(window_days, use_sqlite=use_sqlite)
+    accounts_df = load_all_accounts(use_sqlite=use_sqlite)
     
     if transactions_df is None or len(transactions_df) == 0:
         print("No transactions found.")
@@ -502,9 +597,9 @@ def compute_all_features_vectorized(window_days: int = 30, time_window: str = "3
         print(f"  Computed features in {compute_time:.1f}s")
         print(f"  Storing results...")
     
-    # Store results
+    # Collect all features for batch storage
     store_start = time.time()
-    stored_count = 0
+    features_list = []
     
     for user_id in user_ids:
         all_features = {
@@ -540,14 +635,19 @@ def compute_all_features_vectorized(window_days: int = 30, time_window: str = "3
             })
         }
         
-        # Store each signal type separately
+        # Add each signal type to the features list for batch storage
         for signal_type, signal_data in all_features.items():
-            store_feature(user_id, signal_type, signal_data, time_window)
-        
-        stored_count += 1
-        
-        if verbose and stored_count % 50 == 0:
-            print(f"  Stored features for {stored_count}/{total_users} users...")
+            features_list.append({
+                'user_id': user_id,
+                'signal_type': signal_type,
+                'signal_data': signal_data,
+                'time_window': time_window
+            })
+    
+    # Batch store all features
+    if verbose:
+        print(f"  Storing {len(features_list)} features...")
+    stored_count = store_features_vectorized(features_list, use_sqlite=use_sqlite)
     
     store_time = time.time() - store_start
     total_time = time.time() - start_time
@@ -557,7 +657,8 @@ def compute_all_features_vectorized(window_days: int = 30, time_window: str = "3
     print(f"  - Load time: {load_time:.1f}s")
     print(f"  - Compute time: {compute_time:.1f}s")
     print(f"  - Store time: {store_time:.1f}s")
-    print(f"  - Users processed: {stored_count}")
+    print(f"  - Features stored: {stored_count}")
+    print(f"  - Users processed: {total_users}")
     print(f"{'='*60}")
 
 
@@ -598,15 +699,12 @@ Note: This requires SQLite database. For Firestore, use compute_all.py instead.
     )
     args = parser.parse_args()
     
-    # Override USE_FIRESTORE if --sqlite flag is passed
-    if args.sqlite:
-        USE_FIRESTORE = False
-    
     window_days = 30 if args.window == "30d" else 180
     
     compute_all_features_vectorized(
         window_days=window_days,
         time_window=args.window,
-        verbose=not args.quiet
+        verbose=not args.quiet,
+        use_sqlite=args.sqlite
     )
 

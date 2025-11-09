@@ -92,19 +92,27 @@ def push_users_from_sqlite(dry_run: bool = False, delay: float = 0.0) -> int:
     Returns:
         Number of users pushed.
     """
+    use_emulator = os.getenv('FIRESTORE_EMULATOR_HOST') is not None or os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true'
+    target = "EMULATOR" if use_emulator else "PRODUCTION"
+    
+    print(f"  🔌 Connecting to Firebase {target}...")
     client = get_db()
     if client is None:
         raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
+    print(f"  ✅ Connected to Firebase {target}")
     
     start_time = time.time()
+    print("  📥 Reading users from SQLite...")
     users = db.fetch_all("SELECT * FROM users")
     
     print(f"  📊 Found {len(users)} users in SQLite")
+    print(f"  🎯 Target: Firebase {target}")
     
     if dry_run:
-        print(f"  [DRY RUN] Would push {len(users)} users")
+        print(f"  [DRY RUN] Would push {len(users)} users to {target}")
         return len(users)
     
+    print(f"  🚀 Starting push to {target}...")
     pushed = 0
     failed = 0
     
@@ -118,12 +126,13 @@ def push_users_from_sqlite(dry_run: bool = False, delay: float = 0.0) -> int:
             store_user(user_data)
             pushed += 1
             
-            if i % 25 == 0:
+            if i % 25 == 0 or i == 1:
                 elapsed = time.time() - start_time
                 rate = i / elapsed if elapsed > 0 else 0
                 remaining = len(users) - i
                 eta = remaining / rate if rate > 0 else 0
-                print(f"  ✅ Pushed {i}/{len(users)} users ({pushed} success, {failed} failed) | Rate: {rate:.1f}/s | ETA: {eta:.0f}s")
+                percent = (i / len(users)) * 100
+                print(f"  ✅ Progress: {i}/{len(users)} users ({percent:.1f}%) | {pushed} success, {failed} failed | Rate: {rate:.1f}/s | ETA: {eta:.0f}s")
             
             if delay > 0:
                 time.sleep(delay)
@@ -132,7 +141,7 @@ def push_users_from_sqlite(dry_run: bool = False, delay: float = 0.0) -> int:
             print(f"  ⚠️  Failed to push user {get_row_value(user_row, 'user_id', 'unknown')}: {str(e)[:100]}")
     
     elapsed = time.time() - start_time
-    print(f"  ✅ Pushed {pushed}/{len(users)} users in {elapsed:.1f}s ({pushed} success, {failed} failed)")
+    print(f"  ✅ Completed: Pushed {pushed}/{len(users)} users to {target} in {elapsed:.1f}s ({pushed} success, {failed} failed)")
     return pushed
 
 
@@ -148,19 +157,27 @@ def push_accounts_from_sqlite(dry_run: bool = False, batch_size: int = 500, dela
     Returns:
         Number of accounts pushed.
     """
+    use_emulator = os.getenv('FIRESTORE_EMULATOR_HOST') is not None or os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true'
+    target = "EMULATOR" if use_emulator else "PRODUCTION"
+    
+    print(f"  🔌 Connecting to Firebase {target}...")
     client = get_db()
     if client is None:
         raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
+    print(f"  ✅ Connected to Firebase {target}")
     
     start_time = time.time()
+    print("  📥 Reading accounts from SQLite...")
     accounts = db.fetch_all("SELECT * FROM accounts")
     
     print(f"  📊 Found {len(accounts)} accounts in SQLite")
+    print(f"  🎯 Target: Firebase {target}")
     
     if dry_run:
-        print(f"  [DRY RUN] Would push {len(accounts)} accounts in ~{(len(accounts) + batch_size - 1) // batch_size} batches")
+        print(f"  [DRY RUN] Would push {len(accounts)} accounts in ~{(len(accounts) + batch_size - 1) // batch_size} batches to {target}")
         return len(accounts)
     
+    print(f"  🚀 Starting push to {target}...")
     batch = client.batch()
     pushed = 0
     total_batches = 0
@@ -190,7 +207,8 @@ def push_accounts_from_sqlite(dry_run: bool = False, batch_size: int = 500, dela
                 rate = pushed / elapsed if elapsed > 0 else 0
                 remaining = len(accounts) - pushed
                 eta = remaining / rate if rate > 0 else 0
-                print(f"  ✅ Batch {total_batches}: {pushed}/{len(accounts)} accounts | Rate: {rate:.1f}/s | ETA: {eta:.0f}s")
+                percent = (pushed / len(accounts)) * 100
+                print(f"  ✅ Batch {total_batches}: {pushed:,}/{len(accounts):,} accounts ({percent:.1f}%) | Rate: {rate:.1f}/s | ETA: {eta:.0f}s")
                 
                 if delay > 0:
                     time.sleep(delay)
@@ -205,11 +223,12 @@ def push_accounts_from_sqlite(dry_run: bool = False, batch_size: int = 500, dela
                 batch.commit()
             retry_with_backoff(commit_batch, max_retries=max_retries, initial_delay=1.0)
             total_batches += 1
+            print(f"  ✅ Final batch {total_batches}: Committed remaining accounts")
         except Exception as e:
             print(f"  ⚠️  Failed to commit final batch: {str(e)[:100]}")
     
     elapsed = time.time() - start_time
-    print(f"  ✅ Pushed {pushed}/{len(accounts)} accounts ({total_batches} batches) in {elapsed:.1f}s ({pushed} success, {failed} failed)")
+    print(f"  ✅ Completed: Pushed {pushed:,}/{len(accounts):,} accounts to {target} ({total_batches} batches) in {elapsed:.1f}s ({pushed} success, {failed} failed)")
     return pushed
 
 
@@ -225,19 +244,27 @@ def push_transactions_from_sqlite(dry_run: bool = False, batch_size: int = 500, 
     Returns:
         Number of transactions pushed.
     """
+    use_emulator = os.getenv('FIRESTORE_EMULATOR_HOST') is not None or os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true'
+    target = "EMULATOR" if use_emulator else "PRODUCTION"
+    
+    print(f"  🔌 Connecting to Firebase {target}...")
     client = get_db()
     if client is None:
         raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
+    print(f"  ✅ Connected to Firebase {target}")
     
     start_time = time.time()
+    print("  📥 Reading transactions from SQLite...")
     transactions = db.fetch_all("SELECT * FROM transactions")
     
     print(f"  📊 Found {len(transactions)} transactions in SQLite")
+    print(f"  🎯 Target: Firebase {target}")
     
     if dry_run:
-        print(f"  [DRY RUN] Would push {len(transactions)} transactions in ~{(len(transactions) + batch_size - 1) // batch_size} batches")
+        print(f"  [DRY RUN] Would push {len(transactions)} transactions in ~{(len(transactions) + batch_size - 1) // batch_size} batches to {target}")
         return len(transactions)
     
+    print(f"  🚀 Starting push to {target}...")
     batch = client.batch()
     pushed = 0
     total_batches = 0
@@ -305,11 +332,12 @@ def push_transactions_from_sqlite(dry_run: bool = False, batch_size: int = 500, 
                 batch.commit()
             retry_with_backoff(commit_batch, max_retries=max_retries, initial_delay=1.0)
             total_batches += 1
+            print(f"  ✅ Final batch {total_batches}: Committed remaining transactions")
         except Exception as e:
             print(f"  ⚠️  Failed to commit final batch: {str(e)[:100]}")
     
     elapsed = time.time() - start_time
-    print(f"  ✅ Pushed {pushed:,}/{len(transactions):,} transactions ({total_batches} batches) in {elapsed:.1f}s ({pushed} success, {failed} failed)")
+    print(f"  ✅ Completed: Pushed {pushed:,}/{len(transactions):,} transactions to {target} ({total_batches} batches) in {elapsed:.1f}s ({pushed} success, {failed} failed)")
     return pushed
 
 
@@ -323,19 +351,27 @@ def push_features_from_sqlite(dry_run: bool = False, delay: float = 0.0) -> int:
     Returns:
         Number of features pushed.
     """
+    use_emulator = os.getenv('FIRESTORE_EMULATOR_HOST') is not None or os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true'
+    target = "EMULATOR" if use_emulator else "PRODUCTION"
+    
+    print(f"  🔌 Connecting to Firebase {target}...")
     client = get_db()
     if client is None:
         raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
+    print(f"  ✅ Connected to Firebase {target}")
     
     start_time = time.time()
+    print("  📥 Reading features from SQLite...")
     features = db.fetch_all("SELECT * FROM computed_features")
     
     print(f"  📊 Found {len(features)} features in SQLite")
+    print(f"  🎯 Target: Firebase {target}")
     
     if dry_run:
-        print(f"  [DRY RUN] Would push {len(features)} features")
+        print(f"  [DRY RUN] Would push {len(features)} features to {target}")
         return len(features)
     
+    print(f"  🚀 Starting push to {target}...")
     pushed = 0
     failed = 0
     
@@ -349,12 +385,13 @@ def push_features_from_sqlite(dry_run: bool = False, delay: float = 0.0) -> int:
             store_feature(user_id, signal_type, signal_data, time_window)
             pushed += 1
             
-            if i % 100 == 0:
+            if i % 100 == 0 or i == 1:
                 elapsed = time.time() - start_time
                 rate = i / elapsed if elapsed > 0 else 0
                 remaining = len(features) - i
                 eta = remaining / rate if rate > 0 else 0
-                print(f"  ✅ Pushed {i}/{len(features)} features ({pushed} success, {failed} failed) | Rate: {rate:.1f}/s | ETA: {eta:.0f}s")
+                percent = (i / len(features)) * 100
+                print(f"  ✅ Progress: {i}/{len(features)} features ({percent:.1f}%) | {pushed} success, {failed} failed | Rate: {rate:.1f}/s | ETA: {eta:.0f}s")
             
             if delay > 0:
                 time.sleep(delay)
@@ -363,7 +400,7 @@ def push_features_from_sqlite(dry_run: bool = False, delay: float = 0.0) -> int:
             print(f"  ⚠️  Failed to push feature {get_row_value(feature_row, 'signal_type', 'unknown')}: {str(e)[:100]}")
     
     elapsed = time.time() - start_time
-    print(f"  ✅ Pushed {pushed}/{len(features)} features in {elapsed:.1f}s ({pushed} success, {failed} failed)")
+    print(f"  ✅ Completed: Pushed {pushed}/{len(features)} features to {target} in {elapsed:.1f}s ({pushed} success, {failed} failed)")
     return pushed
 
 
@@ -377,19 +414,27 @@ def push_personas_from_sqlite(dry_run: bool = False, delay: float = 0.0) -> int:
     Returns:
         Number of persona assignments pushed.
     """
+    use_emulator = os.getenv('FIRESTORE_EMULATOR_HOST') is not None or os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true'
+    target = "EMULATOR" if use_emulator else "PRODUCTION"
+    
+    print(f"  🔌 Connecting to Firebase {target}...")
     client = get_db()
     if client is None:
         raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
+    print(f"  ✅ Connected to Firebase {target}")
     
     start_time = time.time()
+    print("  📥 Reading persona assignments from SQLite...")
     personas = db.fetch_all("SELECT * FROM persona_assignments")
     
     print(f"  📊 Found {len(personas)} persona assignments in SQLite")
+    print(f"  🎯 Target: Firebase {target}")
     
     if dry_run:
-        print(f"  [DRY RUN] Would push {len(personas)} persona assignments")
+        print(f"  [DRY RUN] Would push {len(personas)} persona assignments to {target}")
         return len(personas)
     
+    print(f"  🚀 Starting push to {target}...")
     pushed = 0
     failed = 0
     
@@ -411,12 +456,13 @@ def push_personas_from_sqlite(dry_run: bool = False, delay: float = 0.0) -> int:
             store_persona(persona_row['user_id'], persona_data)
             pushed += 1
             
-            if i % 50 == 0:
+            if i % 50 == 0 or i == 1:
                 elapsed = time.time() - start_time
                 rate = i / elapsed if elapsed > 0 else 0
                 remaining = len(personas) - i
                 eta = remaining / rate if rate > 0 else 0
-                print(f"  ✅ Pushed {i}/{len(personas)} persona assignments ({pushed} success, {failed} failed) | Rate: {rate:.1f}/s | ETA: {eta:.0f}s")
+                percent = (i / len(personas)) * 100
+                print(f"  ✅ Progress: {i}/{len(personas)} persona assignments ({percent:.1f}%) | {pushed} success, {failed} failed | Rate: {rate:.1f}/s | ETA: {eta:.0f}s")
             
             if delay > 0:
                 time.sleep(delay)
@@ -425,7 +471,7 @@ def push_personas_from_sqlite(dry_run: bool = False, delay: float = 0.0) -> int:
             print(f"  ⚠️  Failed to push persona {get_row_value(persona_row, 'user_id', 'unknown')}: {str(e)[:100]}")
     
     elapsed = time.time() - start_time
-    print(f"  ✅ Pushed {pushed}/{len(personas)} persona assignments in {elapsed:.1f}s ({pushed} success, {failed} failed)")
+    print(f"  ✅ Completed: Pushed {pushed}/{len(personas)} persona assignments to {target} in {elapsed:.1f}s ({pushed} success, {failed} failed)")
     return pushed
 
 
@@ -439,19 +485,27 @@ def push_recommendations_from_sqlite(dry_run: bool = False, delay: float = 0.0) 
     Returns:
         Number of recommendations pushed.
     """
+    use_emulator = os.getenv('FIRESTORE_EMULATOR_HOST') is not None or os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true'
+    target = "EMULATOR" if use_emulator else "PRODUCTION"
+    
+    print(f"  🔌 Connecting to Firebase {target}...")
     client = get_db()
     if client is None:
         raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
+    print(f"  ✅ Connected to Firebase {target}")
     
     start_time = time.time()
+    print("  📥 Reading recommendations from SQLite...")
     recommendations = db.fetch_all("SELECT * FROM recommendations")
     
     print(f"  📊 Found {len(recommendations)} recommendations in SQLite")
+    print(f"  🎯 Target: Firebase {target}")
     
     if dry_run:
-        print(f"  [DRY RUN] Would push {len(recommendations)} recommendations")
+        print(f"  [DRY RUN] Would push {len(recommendations)} recommendations to {target}")
         return len(recommendations)
     
+    print(f"  🚀 Starting push to {target}...")
     pushed = 0
     failed = 0
     
@@ -469,12 +523,13 @@ def push_recommendations_from_sqlite(dry_run: bool = False, delay: float = 0.0) 
             store_recommendation(rec_row['user_id'], recommendation_data)
             pushed += 1
             
-            if i % 50 == 0:
+            if i % 50 == 0 or i == 1:
                 elapsed = time.time() - start_time
                 rate = i / elapsed if elapsed > 0 else 0
                 remaining = len(recommendations) - i
                 eta = remaining / rate if rate > 0 else 0
-                print(f"  ✅ Pushed {i}/{len(recommendations)} recommendations ({pushed} success, {failed} failed) | Rate: {rate:.1f}/s | ETA: {eta:.0f}s")
+                percent = (i / len(recommendations)) * 100
+                print(f"  ✅ Progress: {i}/{len(recommendations)} recommendations ({percent:.1f}%) | {pushed} success, {failed} failed | Rate: {rate:.1f}/s | ETA: {eta:.0f}s")
             
             if delay > 0:
                 time.sleep(delay)
@@ -483,7 +538,7 @@ def push_recommendations_from_sqlite(dry_run: bool = False, delay: float = 0.0) 
             print(f"  ⚠️  Failed to push recommendation {get_row_value(rec_row, 'recommendation_id', 'unknown')}: {str(e)[:100]}")
     
     elapsed = time.time() - start_time
-    print(f"  ✅ Pushed {pushed}/{len(recommendations)} recommendations in {elapsed:.1f}s ({pushed} success, {failed} failed)")
+    print(f"  ✅ Completed: Pushed {pushed}/{len(recommendations)} recommendations to {target} in {elapsed:.1f}s ({pushed} success, {failed} failed)")
     return pushed
 
 
@@ -506,16 +561,26 @@ def push_all_from_sqlite(collections: Optional[List[str]] = None, dry_run: bool 
     # Check if Firebase emulator is active (safety check)
     use_emulator = os.getenv('FIRESTORE_EMULATOR_HOST') is not None or os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true'
     
+    print("=" * 60)
+    print("🔥 FIREBASE CONNECTION CHECK")
+    print("=" * 60)
+    
     if use_emulator:
-        print("📱 Note: Using Firebase emulator (localhost:8080)")
+        print("📱 Target: Firebase Emulator")
+        print("📍 Host: localhost:8080")
+        print("=" * 60)
     else:
-        # Check if we're connected to production
+        print("⚠️  Target: Firebase PRODUCTION")
+        print("=" * 60)
+        
+        # Initialize Firebase (will print warning if production)
         client = get_db()
         if client is None:
             raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
-        print("⚠️  Warning: Connected to Firebase production. Proceeding with push...")
+        
         if delay < 0.1:
             print(f"⚠️  Warning: Delay is very low ({delay}s). Consider using --delay 0.5 to avoid quota limits.")
+        print("=" * 60)
     
     if dry_run:
         print("=" * 60)

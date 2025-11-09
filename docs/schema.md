@@ -408,6 +408,52 @@ Credit card payment behaviors are distributed as follows:
 }
 ```
 
+### POST /api/chat
+Request body:
+```json
+{
+  "user_id": "user_001",
+  "message": "How is my spending this month?",
+  "transaction_window_days": 30
+}
+```
+
+Response:
+```json
+{
+  "data": {
+    "response": "Based on your transactions...",
+    "citations": [
+      {
+        "data_point": "Account ending in 4523",
+        "value": "65.0% utilization"
+      }
+    ]
+  },
+  "meta": {
+    "user_id": "user_001",
+    "timestamp": "2025-01-15T10:00:00Z"
+  }
+}
+```
+
+**Parameters:**
+- `user_id` (required): User identifier
+- `message` (required): User's question or message
+- `transaction_window_days` (optional): Number of days of transaction history to analyze (default: 30, min: 7, max: 180)
+
+**Features:**
+- Configurable transaction window (7-180 days)
+- Temporal spending analysis (weekday/weekend, month-to-date)
+- Category breakdowns with percentages
+- Payment channel analysis (online vs in-store)
+- Frequent merchant identification
+- Pending transaction awareness
+- Account-specific activity summaries
+- Automatic PII sanitization
+- Token management and context optimization
+- Guardrails validation for safe responses
+
 ## Error Responses
 
 All endpoints return standard HTTP status codes:

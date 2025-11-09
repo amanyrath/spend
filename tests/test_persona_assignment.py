@@ -301,3 +301,13 @@ def test_check_savings_builder_criteria():
     }
     assert assignment.check_savings_builder(signals3) == False
 
+
+
+
+
+
+
+
+
+
+

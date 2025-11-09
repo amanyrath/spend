@@ -4,6 +4,7 @@ This module provides guardrails validation using the Guardrails AI framework
 with custom validators for financial education tone and prohibited phrases.
 """
 
+import re
 from typing import Optional, List
 from guardrails import Guard, OnFailAction
 from guardrails.validators import Validator, register_validator
@@ -29,6 +30,14 @@ PROHIBITED_PHRASES = [
     "you're overspending",
     "bad habit",
     "poor choice"
+]
+
+# Sensitive patterns that should not appear in merchant names or financial data
+MERCHANT_PII_PATTERNS = [
+    (r'@', 'email address'),
+    (r'\d{3}-\d{3}-\d{4}', 'phone number'),
+    (r'\d{3}-\d{2}-\d{4}', 'SSN'),
+    (r'\b\d{13,19}\b', 'account number'),
 ]
 
 
@@ -76,6 +85,49 @@ class ProhibitedPhrasesValidator(Validator):
         return value
 
 
+@register_validator(name="merchant_name_validator", data_type="string")
+class MerchantNameValidator(Validator):
+    """Custom validator for merchant names to detect PII patterns.
+    
+    Validates that merchant names do not contain personally identifiable
+    information patterns like email addresses, phone numbers, or account numbers.
+    """
+    
+    def __init__(self, patterns: Optional[List[tuple]] = None, on_fail: Optional[OnFailAction] = None, **kwargs):
+        super().__init__(on_fail=on_fail, **kwargs)
+        self.patterns = patterns or MERCHANT_PII_PATTERNS
+    
+    def validate(self, value: str, metadata: dict = None) -> str:
+        """Validate that merchant name does not contain PII patterns.
+        
+        Args:
+            value: Merchant name to validate
+            metadata: Optional metadata
+            
+        Returns:
+            Validated merchant name
+            
+        Raises:
+            ValidationError: If PII pattern is found
+        """
+        if not value:
+            return value
+        
+        found_patterns = []
+        
+        for pattern, description in self.patterns:
+            if re.search(pattern, value):
+                found_patterns.append(description)
+        
+        if found_patterns:
+            raise ValueError(
+                f"Merchant name contains sensitive patterns: {', '.join(found_patterns)}. "
+                "This data should be sanitized before use."
+            )
+        
+        return value
+
+
 class ChatGuardrails:
     """Guardrails manager for chat responses.
     
@@ -101,6 +153,14 @@ class ChatGuardrails:
         validators.append(
             ProhibitedPhrasesValidator(
                 prohibited_phrases=PROHIBITED_PHRASES,
+                on_fail=OnFailAction.EXCEPTION
+            )
+        )
+        
+        # Add merchant name validator
+        validators.append(
+            MerchantNameValidator(
+                patterns=MERCHANT_PII_PATTERNS,
                 on_fail=OnFailAction.EXCEPTION
             )
         )
@@ -138,6 +198,28 @@ class ChatGuardrails:
             # Extract specific errors from Guardrails exception
             errors = [error_msg]
             return False, text, errors
+    
+    def validate_merchant_names(self, merchant_names: List[str]) -> tuple[bool, List[str]]:
+        """Validate a list of merchant names for PII patterns.
+        
+        Args:
+            merchant_names: List of merchant names to validate
+            
+        Returns:
+            Tuple of (all_valid, invalid_merchants)
+            - all_valid: True if all merchant names are valid
+            - invalid_merchants: List of invalid merchant names
+        """
+        validator = MerchantNameValidator(patterns=MERCHANT_PII_PATTERNS)
+        invalid_merchants = []
+        
+        for merchant_name in merchant_names:
+            try:
+                validator.validate(merchant_name)
+            except (ValueError, Exception):
+                invalid_merchants.append(merchant_name)
+        
+        return len(invalid_merchants) == 0, invalid_merchants
     
     def check_prohibited_phrases(self, text: str) -> List[str]:
         """Check which prohibited phrases are present in text.

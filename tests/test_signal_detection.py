@@ -243,3 +243,13 @@ def test_compute_all_features(sample_user_id):
         assert "savings_behavior" in result
         assert "income_stability" in result
 
+
+
+
+
+
+
+
+
+
+

@@ -340,6 +340,13 @@ Run the test suite:
 pytest tests/ -v
 ```
 
+**Test Coverage**: The project currently has **22 test functions** across 3 test files:
+- `tests/test_persona_assignment.py`: 7 tests
+- `tests/test_signal_detection.py`: 5 tests  
+- `tests/test_recommendations.py`: 10 tests
+
+All tests cover core functionality including persona assignment, signal detection, and recommendation generation.
+
 ## Documentation
 
 See `docs/` directory for:
@@ -375,15 +382,16 @@ SpendSense follows a modular architecture:
   - Operator UI: HTML/JavaScript (oversight interface)
 
 The system automatically detects the deployment environment and uses the appropriate database backend:
+- **SQLite**: Default for local development (set `USE_SQLITE=true` to force)
 - **Firebase Emulator**: Auto-detected when running on `localhost:8080` (or set `FIRESTORE_EMULATOR_HOST=localhost:8080`)
 - **Firebase Production**: Set `FIREBASE_SERVICE_ACCOUNT` or provide `firebase-service-account.json`
-- **SQLite**: Default fallback when no Firebase credentials are detected
 
 **Priority Order:**
-1. If `FIRESTORE_EMULATOR_HOST` is set → Use emulator
-2. If emulator detected on port 8080 → Use emulator (auto-detected)
-3. If `FIREBASE_SERVICE_ACCOUNT` or `firebase-service-account.json` exists → Use production Firebase
-4. Otherwise → Use SQLite
+1. If `USE_SQLITE=true` → **Force SQLite** (takes precedence over everything)
+2. If `FIRESTORE_EMULATOR_HOST` is set → Use emulator
+3. If emulator detected on port 8080 → Use emulator (auto-detected)
+4. If `FIREBASE_SERVICE_ACCOUNT` or `firebase-service-account.json` exists → Use production Firebase
+5. Otherwise → Use SQLite (default fallback)
 
 ## Database Options
 
@@ -391,6 +399,7 @@ The system automatically detects the deployment environment and uses the appropr
 - No setup required
 - Data stored in `data/spendsense.db`
 - Fast and simple for local development
+- **Force SQLite**: Set `USE_SQLITE=true` to use SQLite even if Firebase emulator is running
 
 ### Firebase Emulator (Local Testing)
 - Test Firebase features locally without credentials

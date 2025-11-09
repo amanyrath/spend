@@ -7,6 +7,10 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        mono: ['JetBrains Mono', 'Fira Code', 'IBM Plex Mono', 'Courier New', 'monospace'],
+        sans: ['JetBrains Mono', 'Fira Code', 'IBM Plex Mono', 'Courier New', 'monospace'],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
@@ -54,6 +58,17 @@ export default {
         'trust-warning': '#f59e0b',
         'trust-neutral': '#64748b',
         'trust-rationale-bg': '#eff6ff',
+        // Professional Retro Theme Colors
+        'retro-gold': '#FFD700',
+        'retro-charcoal': '#1a1a1a',
+        'retro-charcoal-light': '#2d2d2d',
+        'retro-border': '#e5e7eb',
+      },
+      borderWidth: {
+        'dashed': '1px',
+      },
+      borderStyle: {
+        'dashed': 'dashed',
       },
     },
   },

@@ -447,6 +447,116 @@ PARTNER_OFFERS: List[Dict[str, Any]] = [
             "monthly_recurring": {"min": 50}
         },
         "rationale_template": "A bill negotiation service could help you reduce your monthly expenses by negotiating better rates on your behalf."
+    },
+    # Credit offer products from credit offers API
+    {
+        "offer_id": "BT-001",
+        "type": "partner_offer",
+        "title": "Platinum Balance Transfer Card",
+        "partner": "Credit Partner",
+        "summary": "0% intro APR on balance transfers for 18 months. No annual fee - save money while paying down debt.",
+        "eligibility_criteria": {
+            "credit_utilization": {"max": 0.85},
+            "is_overdue": {"equals": False}
+        },
+        "rationale_template": "You're currently paying ${interest_charged} per month in interest. This card could help you save on interest while you pay down your balance.",
+        "credit_metadata": {
+            "tier": "PREMIUM",
+            "intro_purchase_apr": "0% for 12 months",
+            "purchase_apr": "16.99% - 24.99% variable",
+            "intro_balance_transfer_apr": "0% for 18 months",
+            "balance_transfer_fee": "3% of transfer amount",
+            "annual_fee": "$0"
+        }
+    },
+    {
+        "offer_id": "SEC-001",
+        "type": "partner_offer",
+        "title": "Credit Builder Secured Card",
+        "partner": "Credit Partner",
+        "summary": "Build credit with responsible use. Security deposit becomes your credit limit.",
+        "eligibility_criteria": {
+            "credit_utilization": {"max": 1.0}
+        },
+        "rationale_template": "Build credit with secured deposit. Improve credit score with responsible use.",
+        "credit_metadata": {
+            "tier": "STARTER",
+            "purchase_apr": "24.99% variable",
+            "annual_fee": "$0"
+        }
+    },
+    {
+        "offer_id": "SAV-001",
+        "type": "partner_offer",
+        "title": "Automatic Savings Rewards Card",
+        "partner": "Credit Partner",
+        "summary": "Automatically save 1% of every purchase. Round-up purchases to nearest dollar into savings.",
+        "eligibility_criteria": {
+            "credit_utilization": {"max": 0.85},
+            "is_overdue": {"equals": False}
+        },
+        "rationale_template": "Build emergency fund while you spend. Automatic savings to boost your savings rate.",
+        "credit_metadata": {
+            "tier": "STANDARD",
+            "intro_purchase_apr": "0% for 6 months",
+            "purchase_apr": "18.99% - 26.99% variable",
+            "annual_fee": "$0"
+        }
+    },
+    {
+        "offer_id": "REST-001",
+        "type": "partner_offer",
+        "title": "Gold Dining Rewards Card",
+        "partner": "Credit Partner",
+        "summary": "Earn 4X points on dining and restaurants. 2X points on groceries, 1X on everything else.",
+        "eligibility_criteria": {
+            "credit_utilization": {"max": 0.30},
+            "is_overdue": {"equals": False}
+        },
+        "rationale_template": "4X points on dining. $50 annual dining credit. Complimentary DoorDash DashPass subscription.",
+        "credit_metadata": {
+            "tier": "PREMIUM",
+            "intro_purchase_apr": "0% for 12 months",
+            "purchase_apr": "15.99% - 23.99% variable",
+            "annual_fee": "$95"
+        }
+    },
+    {
+        "offer_id": "TRVL-001",
+        "type": "partner_offer",
+        "title": "Elite Travel Platinum Card",
+        "partner": "Credit Partner",
+        "summary": "Earn 5X points on flights and hotels. 3X points on travel and dining worldwide.",
+        "eligibility_criteria": {
+            "credit_utilization": {"max": 0.30},
+            "is_overdue": {"equals": False}
+        },
+        "rationale_template": "5X points on travel. 50,000 bonus points after $3,000 spend in 3 months. No foreign transaction fees, priority boarding.",
+        "credit_metadata": {
+            "tier": "PREMIUM",
+            "intro_purchase_apr": "0% for 15 months",
+            "purchase_apr": "16.99% - 24.99% variable",
+            "annual_fee": "$95"
+        }
+    },
+    {
+        "offer_id": "BANK-001",
+        "type": "partner_offer",
+        "title": "High-Yield Savings Account Bonus",
+        "partner": "Credit Partner",
+        "summary": "Earn $500 bonus when you deposit $5,000. Competitive 4.50% APY on all balances.",
+        "eligibility_criteria": {
+            "savings_balance": {"min": 5000},  # Approximate 3 months of min_avg_monthly_savings
+            "is_overdue": {"equals": False}
+        },
+        "rationale_template": "Qualified for $500 bonus with current savings rate. Strong savings history qualifies for $500 bonus.",
+        "credit_metadata": {
+            "tier": "BANKING",
+            "purchase_apr": "4.50% APY",
+            "annual_fee": "$0",
+            "bonus_amount": "$500",
+            "bonus_requirement": "Deposit $5,000 within 90 days"
+        }
     }
 ]
 

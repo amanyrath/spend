@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpendSense Operator - Decision Traces</title>
+    <link rel="stylesheet" href="../styles/traces.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            background: #FFFFFF;
+            color: #1a1a1a;
+            line-height: 1.6;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 240px;
+            background: #FFFFFF;
+            border-right: 2px dashed #e5e7eb;
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px dashed #e5e7eb;
+            margin-bottom: 20px;
+        }
+        
+        .sidebar-logo {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #1e40af;
+            margin-bottom: 4px;
+        }
+        
+        .sidebar-tagline {
+            font-size: 10px;
+            color: #64748b;
+            letter-spacing: 0.5px;
+        }
+        
+        .sidebar-nav {
+            flex: 1;
+            padding: 0 10px;
+        }
+        
+        .nav-item {
+            display: block;
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-decoration: none;
+            border-left: 3px solid transparent;
+            margin-bottom: 4px;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+        }
+        
+        .nav-item:hover {
+            background: #f9fafb;
+            color: #1e40af;
+            border-left-color: #e5e7eb;
+        }
+        
+        .nav-item.active {
+            background: #eff6ff;
+            color: #1e40af;
+            border-left-color: #1e40af;
+        }
+        
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .top-bar {
+            padding: 16px 24px;
+            border-bottom: 2px dashed #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #FFFFFF;
+        }
+        
+        .top-bar-title {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #1e40af;
+        }
+        
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            background: #f9fafb;
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+            z-index: 50;
+        }
+        
+        .modal.show {
+            display: block;
+        }
+        
+        .modal-content {
+            position: relative;
+            top: 40px;
+            margin: 0 auto 40px;
+            padding: 24px;
+            border: 1px solid #e5e7eb;
+            width: 90%;
+            max-width: 800px;
+            background: #FFFFFF;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .modal-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a1a;
+            letter-spacing: 0.5px;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-close:hover {
+            color: #1a1a1a;
+        }
+        
+        .trace-content {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            max-height: 400px;
+            overflow: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: #1a1a1a;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid #1e40af;
+            background: #1e40af;
+            color: #FFFFFF;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'JetBrains Mono', monospace;
+            text-decoration: none;
+            margin-right: 8px;
+        }
+        
+        .btn:hover {
+            background: #1e3a8a;
+            border-color: #1e3a8a;
+        }
+        
+        .btn-secondary {
+            background: #f9fafb;
+            color: #64748b;
+            border-color: #e5e7eb;
+        }
+        
+        .btn-secondary:hover {
+            background: #f3f4f6;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">SPENDSENSE</div>
+            <div class="sidebar-tagline">OPERATOR VIEW</div>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <a href="user_list.html" class="nav-item">USER LIST</a>
+            <a href="analytics.html" class="nav-item">ANALYTICS</a>
+            <a href="decision_traces.html" class="nav-item active">DECISION TRACES</a>
+            <a href="settings.html" class="nav-item">SETTINGS</a>
+        </nav>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="top-bar">
+            <div class="top-bar-title">DECISION TRACES</div>
+        </div>
+        
+        <div class="content-area">
+            <!-- Stats Cards -->
+            <div id="statsContainer" class="stats-grid">
+                <!-- Stats will be inserted here -->
+            </div>
+            
+            <!-- Filter Panel -->
+            <div class="filter-panel">
+                <div class="filter-panel-title">FILTERS</div>
+                <div class="filter-grid">
+                    <div class="filter-field">
+                        <label class="filter-label">User ID</label>
+                        <input type="text" id="filterUserId" class="filter-input" placeholder="Enter user ID">
+                    </div>
+                    <div class="filter-field">
+                        <label class="filter-label">Start Date</label>
+                        <input type="date" id="filterStartDate" class="filter-input">
+                    </div>
+                    <div class="filter-field">
+                        <label class="filter-label">End Date</label>
+                        <input type="date" id="filterEndDate" class="filter-input">
+                    </div>
+                    <div class="filter-field">
+                        <label class="filter-label">Trace Type</label>
+                        <select id="filterTraceType" class="filter-select">
+                            <option value="">All Types</option>
+                            <option value="chat_interaction">Chat</option>
+                            <option value="recommendation_generated">Recommendations</option>
+                            <option value="recommendation_overridden">Overrides</option>
+                            <option value="user_flagged">Flags</option>
+                            <option value="persona_assigned">Personas</option>
+                            <option value="features_computed">Features</option>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label class="filter-label">Persona</label>
+                        <select id="filterPersona" class="filter-select">
+                            <option value="">All Personas</option>
+                            <option value="high_utilization">High Utilization</option>
+                            <option value="variable_income">Variable Income</option>
+                            <option value="subscription_heavy">Subscription Heavy</option>
+                            <option value="savings_builder">Savings Builder</option>
+                            <option value="general_wellness">General Wellness</option>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label class="filter-label">Search</label>
+                        <input type="text" id="filterSearch" class="filter-input" placeholder="Search content...">
+                    </div>
+                </div>
+                <div class="filter-actions" style="margin-top: 16px;">
+                    <button onclick="applyFilters()" class="filter-btn">Apply Filters</button>
+                    <button onclick="clearFilters()" class="filter-btn filter-btn-secondary">Clear</button>
+                </div>
+            </div>
+            
+            <!-- Loading State -->
+            <div id="loadingState" class="loading-state">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Loading traces...</p>
+            </div>
+            
+            <!-- Empty State -->
+            <div id="emptyState" class="empty-state hidden">
+                <div class="empty-state-icon">📋</div>
+                <div class="empty-state-title">No Traces Found</div>
+                <div class="empty-state-description">
+                    Try adjusting your filters or search criteria.
+                </div>
+            </div>
+            
+            <!-- Traces Table -->
+            <div id="tracesTableContainer" class="hidden">
+                <table class="trace-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Type</th>
+                            <th>User ID</th>
+                            <th>Summary</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tracesTableBody">
+                        <!-- Traces will be inserted here -->
+                    </tbody>
+                </table>
+                
+                <!-- Pagination -->
+                <div class="pagination">
+                    <button class="pagination-btn" onclick="previousPage()" id="prevBtn">Previous</button>
+                    <span class="pagination-info" id="paginationInfo">Page 1</span>
+                    <button class="pagination-btn" onclick="nextPage()" id="nextBtn">Next</button>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Trace Modal -->
+    <div id="traceModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">DECISION TRACE</h3>
+                <button onclick="TraceViewer.closeTraceModal()" class="modal-close">&times;</button>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <button onclick="TraceViewer.copyTraceToClipboard()" class="btn">
+                    Copy to Clipboard
+                </button>
+            </div>
+            <div class="trace-content">
+                <pre id="traceContent"></pre>
+            </div>
+        </div>
+    </div>
+    
+    <script src="../components/trace-viewer.js"></script>
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        window.API_BASE_URL = API_BASE_URL;
+        
+        let currentPage = 0;
+        let pageSize = 50;
+        let currentFilters = {};
+        
+        // Load stats on page load
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/traces/stats`);
+                const data = await response.json();
+                renderStats(data.data);
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+        
+        // Render stats cards
+        function renderStats(stats) {
+            const container = document.getElementById('statsContainer');
+            const byType = stats.by_type || {};
+            
+            container.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-label">Total Traces</div>
+                    <div class="stat-value">${stats.total || 0}</div>
+                    <div class="stat-description">All time</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Last 24 Hours</div>
+                    <div class="stat-value">${stats.last_24h || 0}</div>
+                    <div class="stat-description">Recent activity</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Last 7 Days</div>
+                    <div class="stat-value">${stats.last_7d || 0}</div>
+                    <div class="stat-description">Weekly total</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Last 30 Days</div>
+                    <div class="stat-value">${stats.last_30d || 0}</div>
+                    <div class="stat-description">Monthly total</div>
+                </div>
+            `;
+        }
+        
+        // Load traces with current filters
+        async function loadTraces() {
+            const loadingState = document.getElementById('loadingState');
+            const emptyState = document.getElementById('emptyState');
+            const tableContainer = document.getElementById('tracesTableContainer');
+            
+            loadingState.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+            tableContainer.classList.add('hidden');
+            
+            try {
+                const params = new URLSearchParams({
+                    limit: pageSize,
+                    offset: currentPage * pageSize,
+                    ...currentFilters
+                });
+                
+                const response = await fetch(`${API_BASE_URL}/api/traces?${params}`);
+                const data = await response.json();
+                
+                loadingState.classList.add('hidden');
+                
+                if (data.data.length === 0) {
+                    emptyState.classList.remove('hidden');
+                } else {
+                    tableContainer.classList.remove('hidden');
+                    renderTracesTable(data.data, data.meta);
+                }
+            } catch (error) {
+                console.error('Error loading traces:', error);
+                loadingState.classList.add('hidden');
+                alert('Failed to load traces');
+            }
+        }
+        
+        // Render traces table
+        function renderTracesTable(traces, meta) {
+            const tbody = document.getElementById('tracesTableBody');
+            
+            tbody.innerHTML = traces.map(trace => {
+                const formatted = TraceViewer.formatTrace(trace);
+                return `
+                    <tr onclick="TraceViewer.renderTraceModal(${TraceViewer.escapeHtml(JSON.stringify(trace))})">
+                        <td class="trace-table-timestamp">${formatted.timestamp_formatted}</td>
+                        <td>${TraceViewer.renderTypeBadge(trace.trace_type)}</td>
+                        <td class="trace-table-user">${TraceViewer.escapeHtml(trace.user_id)}</td>
+                        <td class="trace-table-summary">${TraceViewer.escapeHtml(trace.summary)}</td>
+                        <td class="trace-table-actions">
+                            <a href="user_detail.html?user_id=${TraceViewer.escapeHtml(trace.user_id)}" class="btn btn-secondary" onclick="event.stopPropagation()">
+                                View User
+                            </a>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            // Update pagination
+            const paginationInfo = document.getElementById('paginationInfo');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            const start = meta.offset + 1;
+            const end = Math.min(meta.offset + meta.limit, meta.total);
+            paginationInfo.textContent = `Showing ${start}-${end} of ${meta.total}`;
+            
+            prevBtn.disabled = currentPage === 0;
+            nextBtn.disabled = !meta.has_more;
+        }
+        
+        // Apply filters
+        function applyFilters() {
+            const filters = {};
+            
+            const userId = document.getElementById('filterUserId').value.trim();
+            if (userId) filters.user_id = userId;
+            
+            const startDate = document.getElementById('filterStartDate').value;
+            if (startDate) filters.start_date = startDate;
+            
+            const endDate = document.getElementById('filterEndDate').value;
+            if (endDate) filters.end_date = endDate;
+            
+            const traceType = document.getElementById('filterTraceType').value;
+            if (traceType) filters.trace_types = traceType;
+            
+            const persona = document.getElementById('filterPersona').value;
+            if (persona) filters.persona = persona;
+            
+            const search = document.getElementById('filterSearch').value.trim();
+            if (search) filters.search = search;
+            
+            currentFilters = filters;
+            currentPage = 0;
+            loadTraces();
+        }
+        
+        // Clear filters
+        function clearFilters() {
+            document.getElementById('filterUserId').value = '';
+            document.getElementById('filterStartDate').value = '';
+            document.getElementById('filterEndDate').value = '';
+            document.getElementById('filterTraceType').value = '';
+            document.getElementById('filterPersona').value = '';
+            document.getElementById('filterSearch').value = '';
+            
+            currentFilters = {};
+            currentPage = 0;
+            loadTraces();
+        }
+        
+        // Pagination
+        function previousPage() {
+            if (currentPage > 0) {
+                currentPage--;
+                loadTraces();
+            }
+        }
+        
+        function nextPage() {
+            currentPage++;
+            loadTraces();
+        }
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                TraceViewer.closeTraceModal();
+            }
+        });
+        
+        // Close modal on outside click
+        window.onclick = function(event) {
+            const modal = document.getElementById('traceModal');
+            if (event.target === modal) {
+                TraceViewer.closeTraceModal();
+            }
+        }
+        
+        // Initialize page
+        loadStats();
+        loadTraces();
+    </script>
+</body>
+</html>

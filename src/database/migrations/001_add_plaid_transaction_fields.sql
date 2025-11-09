@@ -18,3 +18,13 @@ ALTER TABLE transactions ADD COLUMN authorized_date TEXT;
 -- Update existing rows to have default USD currency
 UPDATE transactions SET iso_currency_code = 'USD' WHERE iso_currency_code IS NULL;
 
+
+
+
+
+
+
+
+
+
+

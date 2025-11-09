@@ -196,3 +196,13 @@ This document describes known limitations, simplifications, and areas for future
 
 4. **No Consent Management**: Doesn't track or manage user consent for data processing.
 
+
+
+
+
+
+
+
+
+
+

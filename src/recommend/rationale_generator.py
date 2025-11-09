@@ -189,3 +189,13 @@ def generate_rationale(template: str, signals: Dict[str, Any], content_item: Opt
     
     return rationale.strip()
 
+
+
+
+
+
+
+
+
+
+

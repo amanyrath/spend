@@ -9,6 +9,10 @@ from openai import OpenAI
 from src.chat.prompts import SYSTEM_PROMPT, build_user_context
 from src.guardrails.guardrails_ai import get_guardrails
 from src.guardrails.data_sanitizer import get_sanitizer
+from src.utils.logging import get_logger
+
+# Initialize logger
+logger = get_logger("chat")
 
 # Initialize OpenAI client
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -17,13 +21,19 @@ if OPENAI_API_KEY:
 else:
     client = None
 
+# Chat agent configuration from environment
+CHAT_MAX_CONTEXT_TOKENS = int(os.getenv('CHAT_MAX_CONTEXT_TOKENS', '2000'))
+CHAT_MAX_TRANSACTIONS = int(os.getenv('CHAT_MAX_TRANSACTIONS', '100'))
+
 
 def generate_chat_response(
     message: str,
     user_features: dict,
     recent_transactions: list,
     persona: Optional[dict] = None,
-    max_retries: int = 2
+    max_retries: int = 2,
+    transaction_window_days: int = 30,
+    user_accounts: Optional[list] = None
 ) -> Dict[str, Any]:
     """Generate chat response using OpenAI API with guardrails.
     
@@ -33,6 +43,8 @@ def generate_chat_response(
         recent_transactions: List of recent transactions
         persona: User's persona assignment (optional)
         max_retries: Maximum number of retries if validation fails
+        transaction_window_days: Number of days in transaction window
+        user_accounts: List of user account dictionaries (optional)
         
     Returns:
         Dictionary with 'response' and 'citations' keys
@@ -44,13 +56,28 @@ def generate_chat_response(
     if not client:
         raise ValueError("OPENAI_API_KEY environment variable not set")
     
-    # Sanitize user message and financial data
+    # Initialize sanitizer
     sanitizer = get_sanitizer()
+    
+    # Sanitize user message
     sanitized_message, detected_pii = sanitizer.sanitize_user_message(message)
     
     if detected_pii:
         # Log PII detection (in production, this should go to security logs)
-        print(f"WARNING: PII detected in user message: {', '.join(detected_pii)}")
+        logger.warning(
+            f"PII detected in user message",
+            extra={"detected_pii": detected_pii}
+        )
+    
+    # Sample transactions if count exceeds maximum
+    if len(recent_transactions) > CHAT_MAX_TRANSACTIONS:
+        logger.info(
+            f"Sampling transactions from {len(recent_transactions)} to {CHAT_MAX_TRANSACTIONS}"
+        )
+        recent_transactions = sanitizer.sample_transactions_representative(
+            recent_transactions,
+            max_count=CHAT_MAX_TRANSACTIONS
+        )
     
     # Sanitize financial context
     sanitized_context = sanitizer.sanitize_financial_context(
@@ -59,11 +86,55 @@ def generate_chat_response(
         persona
     )
     
-    # Build user context with sanitized data
+    # Estimate token usage
+    estimated_tokens = sanitizer.estimate_context_tokens(
+        sanitized_context['user_features'],
+        sanitized_context['recent_transactions']
+    )
+    
+    logger.info(f"Estimated context tokens: {estimated_tokens}")
+    
+    # If estimated tokens exceed limit, reduce transaction context
+    if estimated_tokens > CHAT_MAX_CONTEXT_TOKENS:
+        logger.warning(
+            f"Context tokens ({estimated_tokens}) exceed limit ({CHAT_MAX_CONTEXT_TOKENS}). "
+            "Reducing transaction context."
+        )
+        sanitized_context['recent_transactions'] = sanitizer.reduce_transaction_context(
+            sanitized_context['recent_transactions'],
+            target_tokens=CHAT_MAX_CONTEXT_TOKENS
+        )
+        
+        # Re-estimate after reduction
+        new_token_estimate = sanitizer.estimate_context_tokens(
+            sanitized_context['user_features'],
+            sanitized_context['recent_transactions']
+        )
+        logger.info(f"Reduced context tokens to: {new_token_estimate}")
+    
+    # Validate merchant names in transactions
+    guardrails = get_guardrails()
+    merchant_names = [
+        txn.get('merchant_name', '') 
+        for txn in sanitized_context['recent_transactions']
+        if txn.get('merchant_name')
+    ]
+    
+    if merchant_names:
+        all_valid, invalid_merchants = guardrails.validate_merchant_names(merchant_names)
+        if not all_valid:
+            logger.warning(
+                f"Found {len(invalid_merchants)} merchants with potential PII patterns",
+                extra={"invalid_count": len(invalid_merchants)}
+            )
+    
+    # Build user context with sanitized data and accounts
     user_context = build_user_context(
         sanitized_context['user_features'],
         sanitized_context['recent_transactions'],
-        sanitized_context['persona']
+        sanitized_context['persona'],
+        user_accounts=user_accounts or [],
+        transaction_window_days=transaction_window_days
     )
     
     # Build messages for OpenAI
@@ -93,7 +164,6 @@ Please provide an educational response that cites specific data points from the 
             response_text = response.choices[0].message.content.strip()
             
             # Validate with Guardrails AI
-            guardrails = get_guardrails()
             is_valid, validated_text, errors = guardrails.validate(response_text)
             
             if not is_valid:

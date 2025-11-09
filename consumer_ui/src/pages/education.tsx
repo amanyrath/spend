@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 import { EducationCard } from "@/components/education-card"
+import { PersonaModuleRouter } from "@/components/education/PersonaModuleRouter"
 import { fetchRecommendations } from "@/lib/api"
 import type { Recommendation } from "@/lib/api"
 import { Card, CardContent } from "@/components/ui/card"
@@ -11,7 +12,6 @@ export function EducationPage() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
   useEffect(() => {
     if (!userId) {
       setError("User ID is required")
@@ -20,9 +20,10 @@ export function EducationPage() {
     }
     
     const validUserId = getValidUserId(userId)
+    
+    // Load recommendations
     fetchRecommendations(validUserId)
       .then((response) => {
-        // Use education items from new response format
         setRecommendations(response.data.education)
         setLoading(false)
       })
@@ -52,17 +53,7 @@ export function EducationPage() {
     )
   }
 
-  if (recommendations.length === 0) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="pt-6 text-center text-muted-foreground">
-            No education content available at this time.
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  const validUserId = userId ? getValidUserId(userId) : ""
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -72,20 +63,43 @@ export function EducationPage() {
           Personalized financial guidance based on your account activity
         </p>
       </div>
-      <div className="space-y-6">
-        {recommendations.map((rec) => (
-          <EducationCard
-            key={rec.recommendation_id}
-            title={rec.title}
-            description={rec.description || rec.rationale.split(".")[0] + "."}
-            rationale={rec.rationale}
-            contentId={rec.content_id}
-            category={rec.category || "general"}
-            fullContent={rec.full_content || rec.rationale}
-            tags={rec.tags}
+      
+      {/* Interactive Persona Module */}
+      {validUserId && (
+        <div className="mb-8">
+          <PersonaModuleRouter 
+            userId={validUserId} 
+            key={validUserId}
           />
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* Static Education Cards (fallback or additional content) */}
+      {recommendations.length > 0 && (
+        <div className="space-y-6">
+          {recommendations.map((rec) => (
+            <EducationCard
+              key={rec.recommendation_id}
+              title={rec.title}
+              description={rec.description || rec.rationale.split(".")[0] + "."}
+              rationale={rec.rationale}
+              contentId={rec.content_id}
+              category={rec.category || "general"}
+              fullContent={rec.full_content || rec.rationale}
+              tags={rec.tags}
+            />
+          ))}
+        </div>
+      )}
+
+      {recommendations.length === 0 && (
+        <Card>
+          <CardContent className="pt-6 text-center text-muted-foreground">
+            No education content available at this time.
+          </CardContent>
+        </Card>
+      )}
+
       <div className="mt-8 pt-6 border-t">
         <p className="text-sm text-muted-foreground text-center">
           This is educational content, not financial advice. Consult a licensed advisor for personalized guidance.

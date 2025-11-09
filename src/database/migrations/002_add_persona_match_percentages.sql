@@ -15,3 +15,13 @@ ALTER TABLE persona_assignments ADD COLUMN primary_persona TEXT;
 -- Note: Match percentages will remain 0.0 until personas are recalculated
 UPDATE persona_assignments SET primary_persona = persona WHERE primary_persona IS NULL;
 
+
+
+
+
+
+
+
+
+
+

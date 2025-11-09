@@ -39,6 +39,33 @@ class DictRow:
         return self._data.get(key, default)
 
 
+def _is_irregular_frequency(median_pay_gap: float, intervals: List[float]) -> bool:
+    """Determine if pay frequency is irregular based on median gap and variance.
+    
+    Args:
+        median_pay_gap: Median days between paychecks
+        intervals: List of intervals between paychecks in days
+        
+    Returns:
+        True if frequency is irregular, False otherwise
+    """
+    # Check if median gap matches known regular patterns
+    if 6 <= median_pay_gap <= 8:  # Weekly
+        return False
+    elif 13 <= median_pay_gap <= 15:  # Biweekly
+        return False
+    elif 28 <= median_pay_gap <= 31:  # Monthly
+        return False
+    
+    # If median doesn't match patterns, check variance
+    if len(intervals) > 1:
+        std_dev = statistics.stdev(intervals)
+        # High variance indicates irregularity
+        return std_dev > 7
+    
+    return True  # Default to irregular if unclear
+
+
 def _get_transactions(user_id: str, cutoff_date: str, filters: Dict[str, Any] = None) -> List:
     """Get transactions from either SQLite or Firestore"""
     if USE_FIRESTORE:
@@ -482,6 +509,7 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
         - emergency_fund_coverage: Months of expenses covered
         - coverage_level: "excellent", "good", "building", or "low"
         - accounts: List of account-level details
+        - avg_monthly_savings: Average monthly savings over last 90 days
         - travel_filtered_transactions: Count of transactions filtered due to location changes
     """
     cutoff_date = _get_date_window_days_ago(window_days)
@@ -500,6 +528,7 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
             "emergency_fund_coverage": 0.0,
             "coverage_level": "low",
             "accounts": [],
+            "avg_monthly_savings": 0.0,
             "travel_filtered_transactions": 0
         }
     
@@ -523,13 +552,35 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
         transactions = db.fetch_all(transactions_query, tuple(account_ids) + (cutoff_date,))
     
     # Calculate net inflow, filtering out travel-related transactions
+    # Also calculate avg_monthly_savings using 90-day window (regardless of window_days)
     net_inflow = 0.0
     account_flows = defaultdict(float)
     travel_filtered_count = 0
     
+    # For avg_monthly_savings, always use 90 days to get meaningful monthly average
+    savings_window_days = 90
+    savings_cutoff_date = _get_date_window_days_ago(savings_window_days)
+    
+    # Get transactions for monthly savings calculation (90 days)
+    if USE_FIRESTORE:
+        savings_txns = get_user_transactions(user_id, savings_cutoff_date)
+        savings_transactions = [DictRow(txn) for txn in savings_txns if txn.get('account_id') in account_ids]
+    else:
+        placeholders = ",".join(["?"] * len(account_ids))
+        savings_transactions_query = f"""
+            SELECT account_id, date, amount, location_city, location_region, iso_currency_code
+            FROM transactions
+            WHERE account_id IN ({placeholders}) AND date >= ?
+            ORDER BY date
+        """
+        savings_transactions = db.fetch_all(savings_transactions_query, tuple(account_ids) + (savings_cutoff_date,))
+    
     # Track location changes to identify travel
     user_locations = set()  # Track all unique locations seen
     previous_location = None
+    
+    # Track monthly savings for avg_monthly_savings calculation
+    monthly_savings = defaultdict(float)
     
     for tx in transactions:
         amount = tx["amount"]
@@ -564,6 +615,44 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
         if not is_travel_transaction:
             account_flows[account_id] += amount
             net_inflow += amount
+    
+    # Calculate avg_monthly_savings from 90-day window transactions
+    savings_user_locations = set()
+    savings_previous_location = None
+    
+    for tx in savings_transactions:
+        amount = tx["amount"]
+        
+        # Check for travel (same logic as above)
+        location_city = tx.get("location_city")
+        location_region = tx.get("location_region")
+        
+        location_key = None
+        if location_city and location_region:
+            location_key = f"{location_city},{location_region}"
+        elif location_city:
+            location_key = location_city
+        
+        is_travel_transaction = False
+        if location_key and savings_previous_location and location_key != savings_previous_location:
+            if location_key not in savings_user_locations:
+                is_travel_transaction = True
+        
+        if location_key:
+            savings_user_locations.add(location_key)
+            savings_previous_location = location_key
+        
+        # Group by month for avg_monthly_savings (excluding travel)
+        if not is_travel_transaction:
+            tx_date = _parse_date(tx["date"])
+            month_key = tx_date.strftime("%Y-%m")
+            monthly_savings[month_key] += amount
+    
+    # Calculate average monthly savings
+    if monthly_savings:
+        avg_monthly_savings = sum(monthly_savings.values()) / len(monthly_savings)
+    else:
+        avg_monthly_savings = 0.0
     
     # Get current total savings
     total_savings = sum(acc["balance"] or 0.0 for acc in savings_accounts)
@@ -641,6 +730,7 @@ def detect_savings_behavior(user_id: str, window_days: int = 180) -> Dict[str, A
         "coverage_level": coverage_level,
         "accounts": accounts_detail,
         "avg_monthly_expenses": round(avg_monthly_expenses, 2),
+        "avg_monthly_savings": round(avg_monthly_savings, 2),
         "travel_filtered_transactions": travel_filtered_count
     }
 
@@ -687,18 +777,37 @@ def detect_income_stability(user_id: str, window_days: int = 180) -> Dict[str, A
     checking_balance = checking_account["balance"] or 0.0
     
     # Get payroll deposits (positive amounts, likely ACH or deposits)
-    # Look for transactions with keywords or large positive amounts
+    # Look for transactions with keywords or income category
+    # Tightened detection: require amount > 500 AND keywords, OR income category
     if USE_FIRESTORE:
         all_txns = get_user_transactions(user_id, cutoff_date)
-        payroll_transactions = [DictRow(txn) for txn in all_txns 
-                              if txn.get('account_id') == account_id 
-                              and txn.get('amount', 0) > 0
-                              and (txn.get('iso_currency_code') == 'USD' or txn.get('iso_currency_code') is None)
-                              and (txn.get('amount', 0) > 500 
-                                   or 'payroll' in str(txn.get('merchant_name', '')).lower()
-                                   or 'employer' in str(txn.get('merchant_name', '')).lower()
-                                   or category_contains(txn.get('category', ''), 'income')
-                                   or 'salary' in str(txn.get('merchant_name', '')).lower())]
+        payroll_transactions = []
+        for txn in all_txns:
+            if txn.get('account_id') != account_id:
+                continue
+            if txn.get('amount', 0) <= 0:
+                continue
+            if txn.get('iso_currency_code') not in ('USD', None):
+                continue
+            
+            amount = txn.get('amount', 0)
+            merchant_name = str(txn.get('merchant_name', '')).lower()
+            category = txn.get('category', '')
+            
+            # Check if transaction matches payroll criteria
+            # Require: (amount > 500 AND keywords) OR (income category)
+            has_keywords = ('payroll' in merchant_name or
+                           'employer' in merchant_name or
+                           'salary' in merchant_name or
+                           'direct deposit' in merchant_name)
+            has_income_category = category_contains(category, 'income') or category_contains(category, 'payroll')
+            
+            is_payroll = ((amount > 500 and has_keywords) or has_income_category)
+            
+            if is_payroll:
+                # Filter out known non-payroll patterns
+                if not any(x in merchant_name for x in ['savings', 'transfer', 'refund', 'tax']):
+                    payroll_transactions.append(DictRow(txn))
     else:
         # Fetch transactions and filter in Python (handles JSON arrays in category)
         payroll_query = """
@@ -714,6 +823,7 @@ def detect_income_stability(user_id: str, window_days: int = 180) -> Dict[str, A
         
         # Filter payroll transactions using category_contains (handles JSON arrays)
         # Also filter by USD currency and use authorized_date when available
+        # Tightened detection: require amount > 500 AND keywords, OR income category
         payroll_transactions = []
         for txn in all_transactions:
             amount = txn.get("amount", 0)
@@ -726,14 +836,19 @@ def detect_income_stability(user_id: str, window_days: int = 180) -> Dict[str, A
                 continue
             
             # Check if transaction matches payroll criteria
-            is_payroll = (amount > 500 or
-                         'payroll' in merchant_name or
-                         'employer' in merchant_name or
-                         'salary' in merchant_name or
-                         category_contains(category, 'income'))
+            # Require: (amount > 500 AND keywords) OR (income category)
+            has_keywords = ('payroll' in merchant_name or
+                           'employer' in merchant_name or
+                           'salary' in merchant_name or
+                           'direct deposit' in merchant_name)
+            has_income_category = category_contains(category, 'income') or category_contains(category, 'payroll')
+            
+            is_payroll = ((amount > 500 and has_keywords) or has_income_category)
             
             if is_payroll:
-                payroll_transactions.append(txn)
+                # Filter out known non-payroll patterns
+                if not any(x in merchant_name for x in ['savings', 'transfer', 'refund', 'tax']):
+                    payroll_transactions.append(txn)
     
     if len(payroll_transactions) < 2:
         return {
@@ -771,7 +886,8 @@ def detect_income_stability(user_id: str, window_days: int = 180) -> Dict[str, A
     else:
         frequency = "irregular"
     
-    irregular_frequency = frequency == "irregular"
+    # Use standardized helper function for irregular frequency detection
+    irregular_frequency = _is_irregular_frequency(median_pay_gap, intervals)
     
     # Calculate coefficient of variation (standard deviation / mean)
     if pay_amounts:

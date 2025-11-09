@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { RetroCard, RetroCardContent, RetroCardHeader, RetroCardTitle } from "@/components/ui/retro-card"
+import { RetroBadge } from "@/components/ui/retro-badge"
 import { fetchOverview, type OverviewData, type Account } from "@/lib/api"
 import { Wallet, TrendingUp, CreditCard } from "lucide-react"
 import { getValidUserId, formatCurrency, formatPercentage } from "@/lib/utils"
@@ -9,9 +9,9 @@ import { getValidUserId, formatCurrency, formatPercentage } from "@/lib/utils"
 // Health status badge component
 function HealthBadge({ status }: { status: "good" | "fair" | "needs_attention" }) {
   const variants = {
-    good: "bg-green-50 text-green-700 border-green-200",
-    fair: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    needs_attention: "bg-red-50 text-red-700 border-red-200",
+    good: "success" as const,
+    fair: "warning" as const,
+    needs_attention: "destructive" as const,
   }
 
   const labels = {
@@ -21,39 +21,39 @@ function HealthBadge({ status }: { status: "good" | "fair" | "needs_attention" }
   }
 
   return (
-    <Badge variant="outline" className={variants[status]}>
+    <RetroBadge variant={variants[status]}>
       {labels[status]}
-    </Badge>
+    </RetroBadge>
   )
 }
 
 // Account card component
 function AccountCard({ account }: { account: Account }) {
   return (
-    <Card className="border border-gray-200 shadow-sm">
-      <CardContent className="p-4">
+    <RetroCard>
+      <RetroCardContent className="p-4">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <div className="text-sm text-muted-foreground mb-1">****{account.mask}</div>
-            <div className="text-sm font-medium text-foreground mb-2">{account.name}</div>
-            <div className="text-2xl font-bold text-foreground">{formatCurrency(account.balance)}</div>
+            <div className="text-sm font-mono text-retro-charcoal-light mb-1">****{account.mask}</div>
+            <div className="text-sm font-mono font-medium text-retro-charcoal mb-2">{account.name}</div>
+            <div className="text-2xl font-mono font-bold text-retro-charcoal tabular-nums">{formatCurrency(account.balance)}</div>
           </div>
           {account.utilization !== undefined && (
             <div className="text-right">
-              <div className="text-xs text-muted-foreground mb-1">Utilization</div>
+              <div className="text-xs font-mono text-retro-charcoal-light mb-1 uppercase tracking-wider">Utilization</div>
               <div
-                className={`text-sm font-semibold ${
+                className={`text-sm font-mono font-semibold ${
                   account.utilization >= 80
-                    ? "text-red-600"
+                    ? "text-trust-error"
                     : account.utilization >= 50
-                    ? "text-yellow-600"
-                    : "text-green-600"
+                    ? "text-trust-warning"
+                    : "text-trust-success"
                 }`}
               >
                 {formatPercentage(account.utilization)}
               </div>
               {account.limit && (
-                <div className="text-xs text-muted-foreground mt-1">
+                <div className="text-xs font-mono text-retro-charcoal-light mt-1">
                   {formatCurrency(account.available || 0)} available
                 </div>
               )}
@@ -61,15 +61,15 @@ function AccountCard({ account }: { account: Account }) {
           )}
         </div>
         {account.limit && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex justify-between text-xs text-muted-foreground">
+          <div className="mt-3 pt-3 border-t border-retro-border">
+            <div className="flex justify-between text-xs font-mono text-retro-charcoal-light">
               <span>Credit Limit</span>
-              <span>{formatCurrency(account.limit)}</span>
+              <span className="tabular-nums">{formatCurrency(account.limit)}</span>
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </RetroCardContent>
+    </RetroCard>
   )
 }
 
@@ -86,11 +86,11 @@ function AccountSection({
   if (accounts.length === 0) return null
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Icon className="h-5 w-5 text-muted-foreground" />
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-      </div>
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-retro-charcoal-light" />
+          <h2 className="text-lg font-mono font-semibold text-retro-charcoal">{title}</h2>
+        </div>
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {accounts.map((account) => (
           <AccountCard key={account.account_id} account={account} />
@@ -128,7 +128,7 @@ export function OverviewPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <div>
         <div className="text-center">Loading overview...</div>
       </div>
     )
@@ -136,24 +136,24 @@ export function OverviewPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <Card className="border-destructive">
-          <CardContent className="pt-6">
+      <div>
+        <RetroCard className="border-destructive">
+          <RetroCardContent className="pt-6">
             <p className="text-destructive">Error: {error}</p>
-          </CardContent>
-        </Card>
+          </RetroCardContent>
+        </RetroCard>
       </div>
     )
   }
 
   if (!overview) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <Card>
-          <CardContent className="pt-6">
+      <div>
+        <RetroCard>
+          <RetroCardContent className="pt-6">
             <p className="text-muted-foreground text-center">No overview data available.</p>
-          </CardContent>
-        </Card>
+          </RetroCardContent>
+        </RetroCard>
       </div>
     )
   }
@@ -161,64 +161,56 @@ export function OverviewPage() {
   const { summary, accounts, health } = overview.data
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2 text-foreground">Financial Overview</h1>
-        <p className="text-muted-foreground">
-          Your complete financial snapshot at a glance
-        </p>
-      </div>
-
+    <div>
       {/* Summary Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-        <Card className="border border-gray-200 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-5">
+        <RetroCard>
+          <RetroCardHeader className="pb-3">
+            <RetroCardTitle className="text-xs font-medium font-mono text-retro-charcoal-light uppercase tracking-wider">
               Net Worth
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">{formatCurrency(summary.net_worth)}</div>
-          </CardContent>
-        </Card>
+            </RetroCardTitle>
+          </RetroCardHeader>
+          <RetroCardContent>
+            <div className="text-3xl font-bold font-mono text-retro-charcoal tabular-nums">{formatCurrency(summary.net_worth)}</div>
+          </RetroCardContent>
+        </RetroCard>
 
-        <Card className="border border-gray-200 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <RetroCard>
+          <RetroCardHeader className="pb-3">
+            <RetroCardTitle className="text-xs font-medium font-mono text-retro-charcoal-light uppercase tracking-wider">
               Total Savings
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">{formatCurrency(summary.total_savings)}</div>
-          </CardContent>
-        </Card>
+            </RetroCardTitle>
+          </RetroCardHeader>
+          <RetroCardContent>
+            <div className="text-3xl font-bold font-mono text-retro-charcoal tabular-nums">{formatCurrency(summary.total_savings)}</div>
+          </RetroCardContent>
+        </RetroCard>
 
-        <Card className="border border-gray-200 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <RetroCard>
+          <RetroCardHeader className="pb-3">
+            <RetroCardTitle className="text-xs font-medium font-mono text-retro-charcoal-light uppercase tracking-wider">
               Credit Debt
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">{formatCurrency(summary.total_credit_debt)}</div>
-          </CardContent>
-        </Card>
+            </RetroCardTitle>
+          </RetroCardHeader>
+          <RetroCardContent>
+            <div className="text-3xl font-bold font-mono text-retro-charcoal tabular-nums">{formatCurrency(summary.total_credit_debt)}</div>
+          </RetroCardContent>
+        </RetroCard>
 
-        <Card className="border border-gray-200 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <RetroCard>
+          <RetroCardHeader className="pb-3">
+            <RetroCardTitle className="text-xs font-medium font-mono text-retro-charcoal-light uppercase tracking-wider">
               Available Credit
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">{formatCurrency(summary.available_credit)}</div>
-          </CardContent>
-        </Card>
+            </RetroCardTitle>
+          </RetroCardHeader>
+          <RetroCardContent>
+            <div className="text-3xl font-bold font-mono text-retro-charcoal tabular-nums">{formatCurrency(summary.available_credit)}</div>
+          </RetroCardContent>
+        </RetroCard>
       </div>
 
       {/* Accounts Sections */}
-      <div className="space-y-8 mb-8">
+      <div className="space-y-8 mb-5">
         <AccountSection
           title="Checking Accounts"
           accounts={accounts.checking}
@@ -239,26 +231,26 @@ export function OverviewPage() {
       </div>
 
       {/* Financial Health Summary */}
-      <Card className="border border-gray-200 shadow-sm">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-xl">Financial Health</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <RetroCard>
+        <RetroCardHeader className="pb-4">
+          <RetroCardTitle className="text-xl font-mono">Financial Health</RetroCardTitle>
+        </RetroCardHeader>
+        <RetroCardContent>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <div>
-              <div className="text-sm text-muted-foreground mb-2">Overall Status</div>
+              <div className="text-sm font-mono text-retro-charcoal-light mb-2 uppercase tracking-wider">Overall Status</div>
               <HealthBadge status={health.overall} />
             </div>
 
             <div>
-              <div className="text-sm text-muted-foreground mb-2">Credit Utilization</div>
+              <div className="text-sm font-mono text-retro-charcoal-light mb-2 uppercase tracking-wider">Credit Utilization</div>
               <div
-                className={`text-lg font-semibold ${
+                className={`text-lg font-mono font-semibold tabular-nums ${
                   health.credit_utilization >= 80
-                    ? "text-red-600"
+                    ? "text-trust-error"
                     : health.credit_utilization >= 50
-                    ? "text-yellow-600"
-                    : "text-green-600"
+                    ? "text-trust-warning"
+                    : "text-trust-success"
                 }`}
               >
                 {formatPercentage(health.credit_utilization)}
@@ -267,22 +259,22 @@ export function OverviewPage() {
 
             {health.emergency_fund_months !== null && (
               <div>
-                <div className="text-sm text-muted-foreground mb-2">Emergency Fund</div>
-                <div className="text-lg font-semibold text-foreground">
+                <div className="text-sm font-mono text-retro-charcoal-light mb-2 uppercase tracking-wider">Emergency Fund</div>
+                <div className="text-lg font-mono font-semibold text-retro-charcoal tabular-nums">
                   {health.emergency_fund_months.toFixed(1)} months
                 </div>
               </div>
             )}
 
             <div>
-              <div className="text-sm text-muted-foreground mb-2">Cash Flow</div>
+              <div className="text-sm font-mono text-retro-charcoal-light mb-2 uppercase tracking-wider">Cash Flow</div>
               <div
-                className={`text-lg font-semibold ${
+                className={`text-lg font-mono font-semibold ${
                   health.cash_flow_status === "negative"
-                    ? "text-red-600"
+                    ? "text-trust-error"
                     : health.cash_flow_status === "tight"
-                    ? "text-yellow-600"
-                    : "text-green-600"
+                    ? "text-trust-warning"
+                    : "text-trust-success"
                 }`}
               >
                 {health.cash_flow_status === "positive"
@@ -293,8 +285,8 @@ export function OverviewPage() {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </RetroCardContent>
+      </RetroCard>
     </div>
   )
 }

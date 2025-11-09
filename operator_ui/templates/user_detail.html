@@ -3,86 +3,594 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SpendSense - User Detail</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>SpendSense Operator - User Detail</title>
+    <link rel="stylesheet" href="../styles/traces.css">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            background: #f9fafb;
+            color: #1a1a1a;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-bottom: 16px;
+            color: #1e40af;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        
+        .back-link:hover {
+            border-color: #e5e7eb;
+        }
+        
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 24px;
+            letter-spacing: 1px;
+        }
+        
         .section-card {
+            background: #FFFFFF;
+            border: 1px solid #e5e7eb;
+            padding: 24px;
+            margin-bottom: 24px;
             transition: transform 0.2s;
         }
+        
         .section-card:hover {
             transform: translateY(-2px);
         }
-        .signal-item {
-            border-left: 3px solid #3b82f6;
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 16px;
+            letter-spacing: 0.5px;
         }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+        
+        .field-label {
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        
+        .field-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            font-size: 10px;
+            font-weight: 600;
+            border: 1px solid;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-radius: 4px;
+        }
+        
+        .badge-high-utilization {
+            color: #ef4444;
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+        
+        .badge-subscription-heavy {
+            color: #a855f7;
+            border-color: #a855f7;
+            background: #faf5ff;
+        }
+        
+        .badge-variable-income {
+            color: #f59e0b;
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }
+        
+        .badge-savings-builder {
+            color: #10b981;
+            border-color: #10b981;
+            background: #ecfdf5;
+        }
+        
+        .badge-general-wellness {
+            color: #3b82f6;
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        
+        .badge-gray {
+            background: #f9fafb;
+            color: #64748b;
+            border-color: #e5e7eb;
+        }
+        
+        .signal-item {
+            background: #f9fafb;
+            border-left: 3px solid #1e40af;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .signal-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+        
         pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
             white-space: pre-wrap;
             word-wrap: break-word;
+            color: #1a1a1a;
+            margin: 0;
+        }
+        
+        .filter-select {
+            padding: 6px 12px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            border: 1px solid #e5e7eb;
+            background: #FFFFFF;
+            color: #1a1a1a;
+        }
+        
+        .filter-select:focus {
+            outline: none;
+            border-color: #FFD700;
+        }
+        
+        .recommendation-card {
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .recommendation-card.overridden {
+            background: #fefce8;
+            border-color: #f59e0b;
+        }
+        
+        .recommendation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+        
+        .recommendation-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid #1e40af;
+            background: #1e40af;
+            color: #FFFFFF;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'JetBrains Mono', monospace;
+            text-decoration: none;
+            margin-right: 8px;
+        }
+        
+        .btn:hover {
+            background: #1e3a8a;
+            border-color: #1e3a8a;
+        }
+        
+        .btn-secondary {
+            background: #f9fafb;
+            color: #64748b;
+            border-color: #e5e7eb;
+        }
+        
+        .btn-secondary:hover {
+            background: #f3f4f6;
+        }
+        
+        .btn-warning {
+            background: #f59e0b;
+            border-color: #f59e0b;
+        }
+        
+        .btn-warning:hover {
+            background: #d97706;
+            border-color: #d97706;
+        }
+        
+        .override-reason {
+            margin-top: 12px;
+            padding: 12px;
+            background: #fef2f2;
+            border: 1px solid #ef4444;
+        }
+        
+        .override-reason-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: #ef4444;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .override-reason-text {
+            font-size: 11px;
+            color: #991b1b;
+        }
+        
+        .rationale-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+        
+        .rationale-text {
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+        
+        .recommendation-meta {
+            font-size: 10px;
+            color: #64748b;
+            margin-top: 12px;
+        }
+        
+        .action-log-item {
+            border: 1px solid #e5e7eb;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .action-type {
+            font-size: 12px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        
+        .action-reason {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        
+        .action-time {
+            font-size: 10px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+            z-index: 50;
+        }
+        
+        .modal.show {
+            display: block;
+        }
+        
+        .modal-content {
+            position: relative;
+            top: 40px;
+            margin: 0 auto;
+            padding: 24px;
+            border: 1px solid #e5e7eb;
+            width: 90%;
+            max-width: 800px;
+            background: #FFFFFF;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .modal-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a1a;
+            letter-spacing: 0.5px;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-close:hover {
+            color: #1a1a1a;
+        }
+        
+        .trace-content {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            max-height: 400px;
+            overflow: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: #1a1a1a;
+        }
+        
+        .loading-state {
+            text-align: center;
+            padding: 48px;
+            color: #64748b;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 3px solid #e5e7eb;
+            border-top-color: #1e40af;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .error-state {
+            background: #fef2f2;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            font-size: 12px;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .flex {
+            display: flex;
+        }
+        
+        .justify-between {
+            justify-content: space-between;
+        }
+        
+        .items-center {
+            align-items: center;
+        }
+        
+        .items-start {
+            align-items: start;
+        }
+        
+        .gap-2 {
+            gap: 8px;
+        }
+        
+        .gap-4 {
+            gap: 16px;
+        }
+        
+        .mb-2 {
+            margin-bottom: 8px;
+        }
+        
+        .mb-4 {
+            margin-bottom: 16px;
+        }
+        
+        .mt-2 {
+            margin-top: 8px;
+        }
+        
+        .mt-4 {
+            margin-top: 16px;
+        }
+        
+        .space-y-4 > * + * {
+            margin-top: 16px;
+        }
+        
+        .text-xs {
+            font-size: 10px;
+        }
+        
+        .text-sm {
+            font-size: 12px;
+        }
+        
+        .rounded {
+            border-radius: 4px;
+        }
+        
+        .rounded-full {
+            border-radius: 9999px;
+        }
+        
+        .inline-flex {
+            display: inline-flex;
+        }
+        
+        .font-semibold {
+            font-weight: 600;
+        }
+        
+        .w-full {
+            width: 100%;
+        }
+        
+        .bg-gray-200 {
+            background: #e5e7eb;
+        }
+        
+        .bg-green-500 {
+            background: #10b981;
+        }
+        
+        .bg-yellow-500 {
+            background: #f59e0b;
+        }
+        
+        .bg-gray-300 {
+            background: #d1d5db;
+        }
+        
+        .h-2 {
+            height: 8px;
+        }
+        
+        .text-gray-600 {
+            color: #64748b;
+        }
+        
+        .text-gray-900 {
+            color: #1a1a1a;
+        }
+        
+        .px-2 {
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+        
+        .py-1 {
+            padding-top: 4px;
+            padding-bottom: 4px;
+        }
+        
+        .px-3 {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+        
+        .py-1 {
+            padding-top: 4px;
+            padding-bottom: 4px;
         }
     </style>
 </head>
-<body class="bg-gray-50">
-    <div class="container mx-auto px-4 py-8">
+<body>
+    <div class="container">
         <!-- Header -->
-        <div class="mb-6">
-            <a href="user_list.html" class="text-blue-600 hover:text-blue-800 mb-4 inline-block">
-                ← Back to User List
-            </a>
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">User Detail</h1>
+        <div>
+            <a href="user_list.html" class="back-link">← BACK TO USER LIST</a>
+            <h1>USER DETAIL</h1>
         </div>
 
         <!-- Loading State -->
-        <div id="loadingState" class="text-center py-12">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p class="mt-4 text-gray-600">Loading user data...</p>
+        <div id="loadingState" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p style="margin-top: 16px;">Loading user data...</p>
         </div>
 
         <!-- Error State -->
-        <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+        <div id="errorState" class="hidden error-state">
             <p id="errorMessage"></p>
         </div>
 
         <!-- User Profile Section -->
-        <div id="profileSection" class="hidden mb-6">
-            <div class="bg-white rounded-lg shadow p-6 section-card">
-                <h2 class="text-xl font-bold text-gray-900 mb-4">Profile</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div id="profileSection" class="hidden">
+            <div class="section-card">
+                <h2 class="section-title">PROFILE</h2>
+                <div class="grid">
                     <div>
-                        <div class="text-sm text-gray-600">User ID</div>
-                        <div class="text-lg font-semibold text-gray-900" id="userId"></div>
+                        <div class="field-label">User ID</div>
+                        <div class="field-value" id="userId"></div>
                     </div>
                     <div>
-                        <div class="text-sm text-gray-600">Name</div>
-                        <div class="text-lg font-semibold text-gray-900" id="userName"></div>
+                        <div class="field-label">Name</div>
+                        <div class="field-value" id="userName"></div>
                     </div>
                     <div>
-                        <div class="text-sm text-gray-600">Created At</div>
-                        <div class="text-lg text-gray-900" id="createdAt"></div>
+                        <div class="field-label">Created At</div>
+                        <div class="field-value" id="createdAt"></div>
                     </div>
                     <div>
-                        <div class="text-sm text-gray-600">Persona (30d)</div>
-                        <div class="mt-1">
-                            <span id="persona30d" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full"></span>
+                        <div class="field-label">Persona (30d)</div>
+                        <div style="margin-top: 4px;">
+                            <span id="persona30d"></span>
                         </div>
                     </div>
                     <div>
-                        <div class="text-sm text-gray-600">Persona (180d)</div>
-                        <div class="mt-1">
-                            <span id="persona180d" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full"></span>
+                        <div class="field-label">Persona (180d)</div>
+                        <div style="margin-top: 4px;">
+                            <span id="persona180d"></span>
                         </div>
                     </div>
                     <div>
-                        <div class="text-sm text-gray-600">Accounts</div>
-                        <div class="text-lg text-gray-900" id="accountCounts">-</div>
+                        <div class="field-label">Accounts</div>
+                        <div class="field-value" id="accountCounts">-</div>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Signals Section -->
-        <div id="signalsSection" class="hidden mb-6">
-            <div class="bg-white rounded-lg shadow p-6 section-card">
-                <h2 class="text-xl font-bold text-gray-900 mb-4">Behavioral Signals</h2>
+        <div id="signalsSection" class="hidden">
+            <div class="section-card">
+                <h2 class="section-title">BEHAVIORAL SIGNALS</h2>
                 <div id="signalsContainer" class="space-y-4">
                     <!-- Signal items will be inserted here -->
                 </div>
@@ -90,11 +598,11 @@
         </div>
 
         <!-- Recommendations Section -->
-        <div id="recommendationsSection" class="hidden mb-6">
-            <div class="bg-white rounded-lg shadow p-6 section-card">
+        <div id="recommendationsSection" class="hidden">
+            <div class="section-card">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold text-gray-900">Recommendations</h2>
-                    <select id="recommendationFilter" class="px-3 py-1 border border-gray-300 rounded-lg text-sm">
+                    <h2 class="section-title">RECOMMENDATIONS</h2>
+                    <select id="recommendationFilter" class="filter-select">
                         <option value="">All Types</option>
                         <option value="education">Education</option>
                         <option value="partner_offer">Partner Offers</option>
@@ -107,45 +615,75 @@
         </div>
 
         <!-- Operator Actions Section -->
-        <div id="actionsSection" class="hidden mb-6">
-            <div class="bg-white rounded-lg shadow p-6 section-card">
-                <h2 class="text-xl font-bold text-gray-900 mb-4">Operator Actions</h2>
+        <div id="actionsSection" class="hidden">
+            <div class="section-card">
+                <h2 class="section-title">OPERATOR ACTIONS</h2>
                 <div class="flex gap-4 mb-4">
-                    <button onclick="flagUser()" class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700">
+                    <button onclick="flagUser()" class="btn btn-warning">
                         Flag for Review
                     </button>
                 </div>
-                <div id="actionsLog" class="mt-4">
+                <div id="actionsLog">
                     <!-- Action log will be inserted here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Activity Timeline Section -->
+        <div id="timelineSection" class="hidden">
+            <div class="section-card">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="section-title">ACTIVITY TIMELINE</h2>
+                    <select id="timelineFilter" class="filter-select">
+                        <option value="">All Events</option>
+                        <option value="chat_interaction">Chat</option>
+                        <option value="recommendation_generated">Recommendations</option>
+                        <option value="recommendation_overridden">Overrides</option>
+                        <option value="user_flagged">Flags</option>
+                        <option value="persona_assigned">Personas</option>
+                        <option value="features_computed">Features</option>
+                    </select>
+                </div>
+                <div id="timelineContainer" class="timeline-container">
+                    <!-- Timeline events will be inserted here -->
+                </div>
+                <div class="flex justify-center mt-4">
+                    <button id="loadMoreTimeline" onclick="loadMoreTimelineEvents()" class="btn btn-secondary hidden">
+                        Load More
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Decision Trace Modal -->
-    <div id="traceModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-900">Decision Trace</h3>
-                <button onclick="closeTraceModal()" class="text-gray-400 hover:text-gray-600">
-                    <span class="text-2xl">&times;</span>
-                </button>
+    <div id="traceModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">DECISION TRACE</h3>
+                <button onclick="closeTraceModal()" class="modal-close">&times;</button>
             </div>
             <div class="mb-4">
-                <button onclick="copyTraceToClipboard()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                <button onclick="copyTraceToClipboard()" class="btn">
                     Copy to Clipboard
                 </button>
             </div>
-            <div class="bg-gray-50 rounded p-4 overflow-auto max-h-96">
-                <pre id="traceContent" class="text-sm text-gray-800"></pre>
+            <div class="trace-content">
+                <pre id="traceContent"></pre>
             </div>
         </div>
     </div>
 
+    <script src="../components/trace-viewer.js"></script>
     <script>
         const API_BASE_URL = 'http://localhost:8000';
+        window.API_BASE_URL = API_BASE_URL;
         let currentUserId = null;
         let currentTrace = null;
+        let allTimelineEvents = [];
+        let filteredTimelineEvents = [];
+        let displayedTimelineCount = 10;
+        const timelinePageSize = 10;
 
         // Get user_id from URL
         function getUserIdFromUrl() {
@@ -191,6 +729,10 @@
                 document.getElementById('signalsSection').classList.remove('hidden');
                 document.getElementById('recommendationsSection').classList.remove('hidden');
                 document.getElementById('actionsSection').classList.remove('hidden');
+                document.getElementById('timelineSection').classList.remove('hidden');
+                
+                // Load timeline
+                loadTimeline();
             } catch (error) {
                 console.error('Error fetching user data:', error);
                 document.getElementById('loadingState').classList.add('hidden');
@@ -232,11 +774,11 @@
             const element = document.getElementById(elementId);
             if (persona) {
                 const displayName = persona.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                const colorClass = getPersonaBadgeClass(persona);
-                element.className = `px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full ${colorClass}`;
+                const badgeClass = getPersonaBadgeClass(persona);
+                element.className = `badge ${badgeClass}`;
                 element.textContent = displayName;
             } else {
-                element.className = 'px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-gray-100 text-gray-800';
+                element.className = 'badge badge-gray';
                 element.textContent = 'None';
             }
         }
@@ -256,7 +798,7 @@
                 if (personaBadge && personaBadge.parentElement) {
                     container = document.createElement('div');
                     container.id = containerId;
-                    container.className = 'mt-2';
+                    container.style.marginTop = '8px';
                     personaBadge.parentElement.appendChild(container);
                 } else {
                     return; // Can't find parent element
@@ -323,9 +865,9 @@
             container.innerHTML = Object.entries(signals).map(([key, value]) => {
                 const title = signalTypes[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                 return `
-                    <div class="signal-item bg-gray-50 p-4 rounded-lg pl-6">
-                        <h3 class="font-semibold text-gray-900 mb-2">${escapeHtml(title)}</h3>
-                        <pre class="text-sm text-gray-700 whitespace-pre-wrap">${escapeHtml(JSON.stringify(value, null, 2))}</pre>
+                    <div class="signal-item">
+                        <h3 class="signal-title">${escapeHtml(title)}</h3>
+                        <pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>
                     </div>
                 `;
             }).join('');
@@ -357,48 +899,46 @@
             container.innerHTML = filtered.map((rec, index) => {
                 const originalIndex = allRecommendations.indexOf(rec);
                 const typeBadge = rec.type === 'education' 
-                    ? '<span class="px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-800">Education</span>'
-                    : '<span class="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-800">Partner Offer</span>';
+                    ? '<span class="badge badge-general-wellness">Education</span>'
+                    : '<span class="badge badge-savings-builder">Partner Offer</span>';
                 
                 const isOverridden = rec.decision_trace?.overridden || false;
                 const overrideReason = rec.decision_trace?.override_reason || '';
                 
                 return `
-                    <div class="border border-gray-200 rounded-lg p-4 ${isOverridden ? 'bg-yellow-50 border-yellow-300' : ''}">
-                        <div class="flex justify-between items-start mb-2">
+                    <div class="recommendation-card ${isOverridden ? 'overridden' : ''}">
+                        <div class="recommendation-header">
                             <div>
-                                <h3 class="font-semibold text-gray-900">${escapeHtml(rec.title)}</h3>
-                                <div class="mt-1 flex gap-2 items-center">
+                                <h3 class="recommendation-title">${escapeHtml(rec.title)}</h3>
+                                <div class="flex gap-2 items-center">
                                     ${typeBadge}
-                                    ${isOverridden ? '<span class="px-2 py-1 text-xs font-semibold rounded bg-red-100 text-red-800">Overridden</span>' : ''}
+                                    ${isOverridden ? '<span class="badge badge-high-utilization">Overridden</span>' : ''}
                                 </div>
                             </div>
                             <div class="flex gap-2">
                                 ${rec.decision_trace ? `
-                                    <button onclick="showTraceModal(${originalIndex})" 
-                                            class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+                                    <button onclick="showTraceModal(${originalIndex})" class="btn btn-secondary">
                                         View Trace
                                     </button>
                                 ` : ''}
                                 ${!isOverridden ? `
-                                    <button onclick="overrideRecommendation('${rec.recommendation_id}')" 
-                                            class="px-3 py-1 text-sm bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200">
+                                    <button onclick="overrideRecommendation('${rec.recommendation_id}')" class="btn btn-warning">
                                         Override
                                     </button>
                                 ` : ''}
                             </div>
                         </div>
                         ${isOverridden && overrideReason ? `
-                            <div class="mt-2 p-2 bg-red-50 border border-red-200 rounded">
-                                <div class="text-xs font-semibold text-red-800">Override Reason:</div>
-                                <div class="text-xs text-red-700">${escapeHtml(overrideReason)}</div>
+                            <div class="override-reason">
+                                <div class="override-reason-label">Override Reason:</div>
+                                <div class="override-reason-text">${escapeHtml(overrideReason)}</div>
                             </div>
                         ` : ''}
-                        <div class="mt-3">
-                            <div class="text-sm font-medium text-gray-700 mb-1">Rationale:</div>
-                            <p class="text-sm text-gray-600">${escapeHtml(rec.rationale || 'No rationale provided')}</p>
+                        <div class="mt-2">
+                            <div class="rationale-label">Rationale:</div>
+                            <p class="rationale-text">${escapeHtml(rec.rationale || 'No rationale provided')}</p>
                         </div>
-                        <div class="mt-2 text-xs text-gray-500">
+                        <div class="recommendation-meta">
                             Content ID: ${escapeHtml(rec.content_id)} | 
                             Shown: ${escapeHtml(rec.shown_at || 'N/A')}
                         </div>
@@ -522,10 +1062,10 @@
                 
                 container.innerHTML = actions.map(action => {
                     return `
-                        <div class="border border-gray-200 rounded-lg p-3 mb-2">
-                            <div class="text-sm font-semibold text-gray-900">${escapeHtml(action.action_type || 'Unknown')}</div>
-                            <div class="text-xs text-gray-600 mt-1">${escapeHtml(action.reason || 'No reason provided')}</div>
-                            <div class="text-xs text-gray-500 mt-1">${escapeHtml(action.created_at || '')}</div>
+                        <div class="action-log-item">
+                            <div class="action-type">${escapeHtml(action.action_type || 'Unknown')}</div>
+                            <div class="action-reason">${escapeHtml(action.reason || 'No reason provided')}</div>
+                            <div class="action-time">${escapeHtml(action.created_at || '')}</div>
                         </div>
                     `;
                 }).join('');
@@ -533,21 +1073,94 @@
                 container.innerHTML = '<p class="text-gray-600 text-sm">Unable to load actions log.</p>';
             }
         }
+        
+        // Load timeline events
+        async function loadTimeline() {
+            const container = document.getElementById('timelineContainer');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/traces/users/${currentUserId}/timeline`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch timeline');
+                }
+                
+                const data = await response.json();
+                allTimelineEvents = data.data || [];
+                filteredTimelineEvents = [...allTimelineEvents];
+                displayedTimelineCount = timelinePageSize;
+                
+                renderTimeline();
+            } catch (error) {
+                console.error('Error loading timeline:', error);
+                container.innerHTML = '<p class="text-gray-600 text-sm">Unable to load activity timeline.</p>';
+            }
+        }
+        
+        // Render timeline
+        function renderTimeline() {
+            const container = document.getElementById('timelineContainer');
+            const loadMoreBtn = document.getElementById('loadMoreTimeline');
+            
+            if (filteredTimelineEvents.length === 0) {
+                container.innerHTML = '<p class="text-gray-600 text-sm">No activity found.</p>';
+                loadMoreBtn.classList.add('hidden');
+                return;
+            }
+            
+            const eventsToShow = filteredTimelineEvents.slice(0, displayedTimelineCount);
+            container.innerHTML = eventsToShow.map(event => TraceViewer.renderTimelineEvent(event)).join('');
+            
+            // Show/hide load more button
+            if (displayedTimelineCount < filteredTimelineEvents.length) {
+                loadMoreBtn.classList.remove('hidden');
+            } else {
+                loadMoreBtn.classList.add('hidden');
+            }
+        }
+        
+        // Load more timeline events
+        function loadMoreTimelineEvents() {
+            displayedTimelineCount += timelinePageSize;
+            renderTimeline();
+        }
+        
+        // Filter timeline
+        function filterTimeline() {
+            const filterValue = document.getElementById('timelineFilter').value;
+            
+            if (filterValue) {
+                filteredTimelineEvents = allTimelineEvents.filter(event => event.trace_type === filterValue);
+            } else {
+                filteredTimelineEvents = [...allTimelineEvents];
+            }
+            
+            displayedTimelineCount = timelinePageSize;
+            renderTimeline();
+        }
+        
+        // Add event listener for timeline filter
+        document.addEventListener('DOMContentLoaded', function() {
+            const timelineFilter = document.getElementById('timelineFilter');
+            if (timelineFilter) {
+                timelineFilter.addEventListener('change', filterTimeline);
+            }
+        });
 
         // Get persona badge color class
         function getPersonaBadgeClass(persona) {
             const colors = {
-                'high_utilization': 'bg-red-100 text-red-800',
-                'variable_income': 'bg-yellow-100 text-yellow-800',
-                'subscription_heavy': 'bg-purple-100 text-purple-800',
-                'savings_builder': 'bg-green-100 text-green-800',
-                'general_wellness': 'bg-blue-100 text-blue-800'
+                'high_utilization': 'badge-high-utilization',
+                'variable_income': 'badge-variable-income',
+                'subscription_heavy': 'badge-subscription-heavy',
+                'savings_builder': 'badge-savings-builder',
+                'general_wellness': 'badge-general-wellness'
             };
-            return colors[persona] || 'bg-gray-100 text-gray-800';
+            return colors[persona] || 'badge-gray';
         }
 
         // Escape HTML to prevent XSS
         function escapeHtml(text) {
+            if (text == null) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -576,4 +1189,3 @@
     </script>
 </body>
 </html>
-

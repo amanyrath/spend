@@ -15,9 +15,9 @@ import csv
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from faker import Faker
-from src.utils.plaid_categories import get_plaid_category, get_category_for_merchant
+from src.utils.plaid_categories import get_category_for_merchant
 
 # Initialize Faker with deterministic seed
 fake = Faker()
@@ -38,6 +38,62 @@ RENT_INCOME_MAX = 0.30
 MONTHS_PER_YEAR = 12
 BIWEEKLY_PAY_PERIODS = 26
 CURRENCY_DECIMAL_PLACES = 2
+
+# US Metro areas for location coherence (top 20 by population)
+METRO_AREAS = [
+    {"name": "New York", "lat": 40.7128, "lon": -74.0060, "weight": 0.15},
+    {"name": "Los Angeles", "lat": 34.0522, "lon": -118.2437, "weight": 0.12},
+    {"name": "Chicago", "lat": 41.8781, "lon": -87.6298, "weight": 0.08},
+    {"name": "Dallas", "lat": 32.7767, "lon": -96.7970, "weight": 0.06},
+    {"name": "Houston", "lat": 29.7604, "lon": -95.3698, "weight": 0.06},
+    {"name": "Washington DC", "lat": 38.9072, "lon": -77.0369, "weight": 0.05},
+    {"name": "Philadelphia", "lat": 39.9526, "lon": -75.1652, "weight": 0.05},
+    {"name": "Miami", "lat": 25.7617, "lon": -80.1918, "weight": 0.05},
+    {"name": "Atlanta", "lat": 33.7490, "lon": -84.3880, "weight": 0.05},
+    {"name": "Boston", "lat": 42.3601, "lon": -71.0589, "weight": 0.04},
+    {"name": "Phoenix", "lat": 33.4484, "lon": -112.0740, "weight": 0.04},
+    {"name": "San Francisco", "lat": 37.7749, "lon": -122.4194, "weight": 0.04},
+    {"name": "Detroit", "lat": 42.3314, "lon": -83.0458, "weight": 0.03},
+    {"name": "Seattle", "lat": 47.6062, "lon": -122.3321, "weight": 0.03},
+    {"name": "Minneapolis", "lat": 44.9778, "lon": -93.2650, "weight": 0.03},
+    {"name": "San Diego", "lat": 32.7157, "lon": -117.1611, "weight": 0.03},
+    {"name": "Tampa", "lat": 27.9506, "lon": -82.4572, "weight": 0.03},
+    {"name": "Denver", "lat": 39.7392, "lon": -104.9903, "weight": 0.03},
+    {"name": "St. Louis", "lat": 38.6270, "lon": -90.1994, "weight": 0.02},
+    {"name": "Portland", "lat": 45.5152, "lon": -122.6784, "weight": 0.02},
+]
+
+# Seasonal spending multipliers (month -> category -> multiplier)
+SEASONAL_MULTIPLIERS = {
+    1: {"utilities": 1.3},  # January - winter heating
+    2: {"utilities": 1.3, "restaurants": 1.2},  # February - heating, Valentine's Day
+    7: {"utilities": 1.2},  # July - summer cooling
+    8: {"utilities": 1.2},  # August - summer cooling
+    11: {"groceries": 1.3, "shopping": 1.5},  # November - Thanksgiving, Black Friday
+    12: {"groceries": 1.4, "restaurants": 1.3, "shopping": 1.8},  # December - holidays
+}
+
+
+def get_day_of_week_multiplier(date: datetime, category: str) -> float:
+    """Get spending multiplier based on day of week.
+    
+    Args:
+        date: Transaction date
+        category: Category type (e.g., "groceries", "restaurants")
+        
+    Returns:
+        Multiplier to apply to transaction amount
+    """
+    weekday = date.weekday()  # 0=Monday, 6=Sunday
+    
+    if category in ["groceries", "shopping"]:
+        # More shopping on weekends
+        return 1.3 if weekday in [5, 6] else 0.9
+    elif category == "restaurants":
+        # More restaurants on Friday-Sunday
+        return 1.4 if weekday in [4, 5, 6] else 0.85
+    
+    return 1.0
 
 
 def generate_users(count: int = 200) -> List[Dict[str, Any]]:
@@ -76,12 +132,21 @@ def generate_users(count: int = 200) -> List[Dict[str, Any]]:
         else:  # high
             income = random.randint(100000, 150000)
         
+        # Assign user to a metro area for location coherence
+        metro_area = random.choices(
+            METRO_AREAS,
+            weights=[m["weight"] for m in METRO_AREAS]
+        )[0]
+        
         # Create user
         user = {
             "user_id": user_id,
             "name": name,
             "income": income,
-            "created_at": (base_date + timedelta(days=random.randint(0, 30))).isoformat()
+            "created_at": (base_date + timedelta(days=random.randint(0, 30))).isoformat(),
+            # Generate employer name for payroll transactions
+            "employer_name": fake.company() + " Payroll",
+            "metro_area": metro_area
         }
         users.append(user)
     
@@ -228,15 +293,17 @@ def generate_accounts(user_id: str, user_profile: Dict[str, Any], homeownership_
     return accounts
 
 
-def _get_transaction_amount_for_category(category_type: str) -> float:
-    """Get transaction amount based on category type.
+def _get_transaction_amount_for_category(category_type: str, user_income: float = 50000) -> float:
+    """Get transaction amount based on category type and user income.
     
     Args:
         category_type: Category string (e.g., "groceries", "restaurants")
+        user_income: User's annual income for scaling amounts
         
     Returns:
         Negative transaction amount (expense)
     """
+    # Base amounts for median income ($50K)
     category_amounts = {
         "groceries": (20.0, 150.0),
         "restaurants": (8.0, 80.0),
@@ -248,8 +315,17 @@ def _get_transaction_amount_for_category(category_type: str) -> float:
         "shopping": (10.0, 300.0),
         "entertainment": (5.0, 50.0),
     }
+    
+    # Calculate income scaling factor (0.7x to 1.8x based on income)
+    # $30K income -> 0.7x, $50K -> 1.0x, $150K -> 1.8x
+    income_scale = 0.7 + (user_income - 30000) / (150000 - 30000) * 1.1
+    income_scale = max(0.7, min(1.8, income_scale))
+    
     min_amount, max_amount = category_amounts.get(category_type, (10.0, 200.0))
-    return -round(random.uniform(min_amount, max_amount), CURRENCY_DECIMAL_PLACES)
+    scaled_min = min_amount * income_scale
+    scaled_max = max_amount * income_scale
+    
+    return -round(random.uniform(scaled_min, scaled_max), CURRENCY_DECIMAL_PLACES)
 
 
 def _calculate_recurring_dates(
@@ -299,7 +375,7 @@ def generate_transactions(
     account_subtype: str,
     user_profile: Dict[str, Any],
     account_info: Dict[str, Any],
-    days: int = 200,
+    days: int = 180,
     homeownership_status: Dict[str, Any] = None,
     persona_group: str = None
 ) -> List[Dict[str, Any]]:
@@ -347,8 +423,14 @@ def generate_transactions(
             # Priority 3: >= 3 subscriptions AND monthly_recurring >= 50
             num_subscriptions = random.randint(3, 8)
             min_per_sub = max(5.99, 50.0 / num_subscriptions)  # Ensure total >= 50
+            
+            # Use unique merchant selection
+            available_merchants = subscription_merchants.copy()
             for _ in range(num_subscriptions):
-                merchant = random.choice(subscription_merchants)
+                if not available_merchants:
+                    break
+                merchant = random.choice(available_merchants)
+                available_merchants.remove(merchant)
                 amount = round(random.uniform(min_per_sub, 29.99), 2)
                 subscriptions[merchant] = {
                     "amount": amount,
@@ -358,8 +440,14 @@ def generate_transactions(
         else:
             # Other personas: random distribution
             num_subscriptions = random.randint(0, 8)
+            
+            # Use unique merchant selection
+            available_merchants = subscription_merchants.copy()
             for _ in range(num_subscriptions):
-                merchant = random.choice(subscription_merchants)
+                if not available_merchants:
+                    break
+                merchant = random.choice(available_merchants)
+                available_merchants.remove(merchant)
                 amount = round(random.uniform(5.99, 29.99), 2)
                 subscriptions[merchant] = {
                     "amount": amount,
@@ -371,21 +459,33 @@ def generate_transactions(
     payroll_amount = None
     payroll_frequency = None
     payroll_start = None
+    employer_name = user_profile.get("employer_name", "PAYROLL DEPOSIT")
     if account_type == "depository" and account_subtype == "checking":
         if persona_group == "variable_income":
             # Priority 2: Irregular frequency OR gaps > 45 days
             payroll_frequency = "irregular"
-            payroll_amount = user_profile["income"] / MONTHS_PER_YEAR
+            base_payroll = user_profile["income"] / MONTHS_PER_YEAR
+            # Add small variation (±1-2%) for realism
+            variation = random.uniform(0.98, 1.02)
+            payroll_amount = base_payroll * variation
             payroll_start = start_date + timedelta(days=random.randint(0, 29))
         else:
             # Regular payroll
             payroll_frequency = random.choice(["biweekly", "monthly"])
             if payroll_frequency == "biweekly":
-                payroll_amount = user_profile["income"] / BIWEEKLY_PAY_PERIODS
+                base_payroll = user_profile["income"] / BIWEEKLY_PAY_PERIODS
             else:
-                payroll_amount = user_profile["income"] / MONTHS_PER_YEAR
+                base_payroll = user_profile["income"] / MONTHS_PER_YEAR
+            # Add small variation (±1-2%) for realism
+            variation = random.uniform(0.98, 1.02)
+            payroll_amount = base_payroll * variation
             payroll_amount = round(payroll_amount, CURRENCY_DECIMAL_PLACES)
-            payroll_start = start_date + timedelta(days=random.randint(0, 13 if payroll_frequency == "biweekly" else 29))
+            # Ensure payroll lands on weekdays (Monday-Friday)
+            start_offset = random.randint(0, 13 if payroll_frequency == "biweekly" else 29)
+            payroll_start = start_date + timedelta(days=start_offset)
+            # Adjust to nearest weekday if needed
+            while payroll_start.weekday() >= 5:  # Saturday = 5, Sunday = 6
+                payroll_start += timedelta(days=1)
     
     # Generate mortgage/rent payments (for checking accounts) - needed before date generation
     mortgage_payment = None
@@ -407,7 +507,7 @@ def generate_transactions(
             rent_payment = round(monthly_income * random.uniform(RENT_INCOME_MIN, RENT_INCOME_MAX), CURRENCY_DECIMAL_PLACES)
             rent_start = start_date + timedelta(days=random.randint(0, 29))
     
-    # Generate transaction dates: up to 6 transactions per day, randomly distributed
+    # Generate transaction dates: up to 2 transactions per day for most accounts
     # For loan accounts, generate monthly payments only
     if account_type == "loan":
         # Loan accounts get monthly payment transactions only
@@ -424,6 +524,7 @@ def generate_transactions(
         
         # Pre-calculate special transaction dates that must have at least 1 transaction
         special_transaction_dates = set()
+        payroll_dates_set = set()  # Track payroll dates separately for payroll check
         if account_type == "depository" and account_subtype == "checking":
             # Calculate payroll dates efficiently
             if payroll_amount and payroll_frequency:
@@ -431,30 +532,63 @@ def generate_transactions(
                     # Generate irregular payroll dates (30-60 day gaps > 45)
                     payroll_dates = set()
                     current_pay_date = payroll_start
+                    previous_pay_date = None
                     while current_pay_date <= datetime.now():
-                        payroll_dates.add(current_pay_date.date())
+                        # Ensure payroll lands on weekdays (Monday-Friday)
+                        while current_pay_date.weekday() >= 5:  # Saturday = 5, Sunday = 6
+                            current_pay_date += timedelta(days=1)
+                        
+                        # Ensure minimum gap of 28 days from previous payroll date
+                        if previous_pay_date is None or (current_pay_date.date() - previous_pay_date).days >= 28:
+                            payroll_dates.add(current_pay_date.date())
+                            previous_pay_date = current_pay_date.date()
+                        
                         gap_days = random.randint(30, 60)  # Irregular gaps
                         current_pay_date += timedelta(days=gap_days)
                     special_transaction_dates.update(payroll_dates)
+                    payroll_dates_set.update(payroll_dates)  # Track separately
                 else:
                     frequency_days = 14 if payroll_frequency == "biweekly" else 30
                     payroll_dates = _calculate_recurring_dates(
                         start_date, datetime.now(), payroll_start, frequency_days
                     )
-                    special_transaction_dates.update(payroll_dates)
+                    # Adjust payroll dates to weekdays (Monday-Friday)
+                    # and ensure minimum gap between adjusted dates
+                    adjusted_payroll_dates = []
+                    previous_adjusted_date = None
+                    for pay_date in sorted(list(payroll_dates)):
+                        # Convert date back to datetime for weekday check
+                        pay_datetime = datetime.combine(pay_date, datetime.min.time())
+                        # Adjust to nearest weekday if needed
+                        while pay_datetime.weekday() >= 5:  # Saturday = 5, Sunday = 6
+                            pay_datetime += timedelta(days=1)
+                        
+                        # Ensure minimum gap of 13 days from previous adjusted payroll date
+                        # (biweekly is 14 days, so 13-day minimum prevents consecutive/nearby days)
+                        if previous_adjusted_date is None or (pay_datetime.date() - previous_adjusted_date).days >= 13:
+                            adjusted_payroll_dates.append(pay_datetime.date())
+                            previous_adjusted_date = pay_datetime.date()
+                    
+                    special_transaction_dates.update(adjusted_payroll_dates)
+                    payroll_dates_set.update(adjusted_payroll_dates)  # Track separately
             
             # Calculate mortgage/rent dates efficiently
+            mortgage_dates_set = set()  # Track mortgage dates separately
+            rent_dates_set = set()  # Track rent dates separately
+            
             if mortgage_payment and mortgage_start:
                 mortgage_dates = _calculate_recurring_dates(
                     start_date, datetime.now(), mortgage_start, 30
                 )
                 special_transaction_dates.update(mortgage_dates)
+                mortgage_dates_set.update(mortgage_dates)
             
             if rent_payment and rent_start:
                 rent_dates = _calculate_recurring_dates(
                     start_date, datetime.now(), rent_start, 30
                 )
                 special_transaction_dates.update(rent_dates)
+                rent_dates_set.update(rent_dates)
             
             # Calculate subscription dates efficiently
             for merchant, sub_info in subscriptions.items():
@@ -468,32 +602,32 @@ def generate_transactions(
             current_date_only = current_date.date()
             is_special_day = current_date_only in special_transaction_dates
             
-            # Determine how many transactions this account gets on this day (0-6)
-            # Special transaction days get at least 1, but still respect 6 max
+            # Determine how many transactions this account gets on this day (0-2)
+            # Special transaction days get at least 1 transaction
             if account_type == "depository" and account_subtype == "checking":
-                # Checking accounts: higher chance of transactions (avg 2-4 per day)
+                # Checking accounts: realistic transaction frequency (avg 0-1 per day)
                 # Ensure special days get at least 1 transaction
                 if is_special_day:
                     daily_tx_count = random.choices(
-                        [1, 2, 3, 4, 5, 6],
-                        weights=[0.20, 0.25, 0.25, 0.15, 0.10, 0.05]
+                        [1, 2],
+                        weights=[0.70, 0.30]
                     )[0]
                 else:
                     daily_tx_count = random.choices(
-                        [0, 1, 2, 3, 4, 5, 6],
-                        weights=[0.10, 0.15, 0.20, 0.25, 0.15, 0.10, 0.05]
+                        [0, 1, 2],
+                        weights=[0.50, 0.35, 0.15]
                     )[0]
             elif account_type == "depository" and account_subtype == "savings":
                 # Savings accounts: rare transactions (maybe once every few days)
                 daily_tx_count = random.choices(
                     [0, 1],
-                    weights=[0.90, 0.10]
+                    weights=[0.95, 0.05]
                 )[0]
             elif account_type == "credit":
                 # Credit cards: moderate transactions (avg 0-2 per day)
                 daily_tx_count = random.choices(
-                    [0, 1, 2, 3, 4],
-                    weights=[0.40, 0.30, 0.20, 0.07, 0.03]
+                    [0, 1, 2],
+                    weights=[0.70, 0.25, 0.05]
                 )[0]
             else:
                 daily_tx_count = 0
@@ -501,8 +635,8 @@ def generate_transactions(
             # Add this date multiple times if multiple transactions
             for _ in range(daily_tx_count):
                 # Add some randomness to the time of day (for variety)
-                hour_offset = random.uniform(0, 0.99)  # Fraction of day
-                transaction_date = current_date + timedelta(days=hour_offset)
+                day_fraction = random.uniform(0, 0.99)  # Fraction of day (0.0 to 0.99)
+                transaction_date = current_date + timedelta(days=day_fraction)
                 transaction_dates.append(transaction_date)
             
             current_date += timedelta(days=1)
@@ -550,9 +684,17 @@ def generate_transactions(
         weights_list.append(weight)
     
     # Generate transactions
+    # Track which payroll/mortgage/rent dates have been processed to prevent duplicates
+    processed_payroll_dates = set()
+    processed_mortgage_dates = set()
+    processed_rent_dates = set()
+    
     for tx_date in transaction_dates:
         transaction_id = f"tx_{account_id}_{transaction_counter:06d}"
         transaction_counter += 1
+        
+        # Initialize variables for this transaction
+        category_type = None  # Track category for clustering logic
         
         # Determine transaction type
         if account_type == "loan":
@@ -586,7 +728,21 @@ def generate_transactions(
             # Credit card transactions (negative amounts)
             # Use BLS-weighted category selection
             category_type = random.choices(category_list, weights=weights_list)[0]
-            amount = _get_transaction_amount_for_category(category_type)
+            user_income = user_profile.get("income", 50000)
+            amount = _get_transaction_amount_for_category(category_type, user_income)
+            
+            # Apply seasonal multiplier
+            tx_month = tx_date.month
+            if tx_month in SEASONAL_MULTIPLIERS:
+                if category_type in SEASONAL_MULTIPLIERS[tx_month]:
+                    amount *= SEASONAL_MULTIPLIERS[tx_month][category_type]
+                    amount = round(amount, CURRENCY_DECIMAL_PLACES)
+            
+            # Apply day-of-week multiplier
+            day_multiplier = get_day_of_week_multiplier(tx_date, category_type)
+            amount *= day_multiplier
+            amount = round(amount, CURRENCY_DECIMAL_PLACES)
+            
             merchant_name = random.choice(categories.get(category_type, categories["shopping"]))
             category = get_category_for_merchant(merchant_name, category_type)
             pending = random.choice([0, 1]) if tx_date > datetime.now() - timedelta(days=2) else 0
@@ -604,33 +760,39 @@ def generate_transactions(
             
             # Check payroll (highest priority)
             if payroll_amount and payroll_frequency:
-                days_since_payroll_start = (tx_date - payroll_start).days
-                frequency_days = 14 if payroll_frequency == "biweekly" else 30
-                if days_since_payroll_start >= 0 and days_since_payroll_start % frequency_days == 0:
-                    amount = payroll_amount
-                    merchant_name = "PAYROLL DEPOSIT"
+                # Check if this date is in pre-calculated payroll dates
+                # (applies to both irregular and regular payroll)
+                if tx_date_only in payroll_dates_set and tx_date_only not in processed_payroll_dates:
+                    # Add small variation to amount for realism (±1-2%)
+                    variation = random.uniform(0.98, 1.02)
+                    amount = round(payroll_amount * variation, CURRENCY_DECIMAL_PLACES)
+                    merchant_name = employer_name
                     category = ["Transfer", "Deposit"]
                     pending = 0
                     payment_channel = "other"
+                    # Mark this payroll date as processed
+                    processed_payroll_dates.add(tx_date_only)
             
             # Check mortgage/rent (second priority)
             if amount is None:
                 if mortgage_payment and mortgage_start:
-                    days_since_mortgage_start = (tx_date - mortgage_start).days
-                    if days_since_mortgage_start >= 0 and days_since_mortgage_start % 30 == 0:
+                    # Check if this date is in pre-calculated mortgage dates and hasn't been processed
+                    if tx_date_only in mortgage_dates_set and tx_date_only not in processed_mortgage_dates:
                         amount = -mortgage_payment
                         merchant_name = "Mortgage Payment"
                         category = ["Rent And Utilities", "Mortgage"]
                         pending = 0
                         payment_channel = "other"
+                        processed_mortgage_dates.add(tx_date_only)
                 elif rent_payment and rent_start:
-                    days_since_rent_start = (tx_date - rent_start).days
-                    if days_since_rent_start >= 0 and days_since_rent_start % 30 == 0:
+                    # Check if this date is in pre-calculated rent dates and hasn't been processed
+                    if tx_date_only in rent_dates_set and tx_date_only not in processed_rent_dates:
                         amount = -rent_payment
                         merchant_name = "Rent Payment"
                         category = ["Rent And Utilities", "Rent"]
                         pending = 0
                         payment_channel = "other"
+                        processed_rent_dates.add(tx_date_only)
             
             # Check subscriptions (third priority)
             if amount is None:
@@ -646,10 +808,39 @@ def generate_transactions(
                         sub_info["next_date"] += timedelta(days=30)
                         break
             
+            # Check credit card payments (85% of users have credit cards)
+            # Generate monthly credit card payment transactions
+            if amount is None and random.random() < 0.85:
+                # Check if this is around the credit card payment date (20th of month ±3 days)
+                day_of_month = tx_date.day
+                if 17 <= day_of_month <= 23:  # 20th ±3 days
+                    # Generate payment based on income (credit card users pay 1-5% of monthly income)
+                    monthly_income = user_profile.get("income", 50000) / MONTHS_PER_YEAR
+                    payment_amount = round(monthly_income * random.uniform(0.01, 0.05), CURRENCY_DECIMAL_PLACES)
+                    amount = -payment_amount
+                    merchant_name = "Credit Card Payment"
+                    category = ["Transfer", "Credit Card Payment"]
+                    pending = 0
+                    payment_channel = "other"
+            
             # Default to regular expense (lowest priority)
             if amount is None:
                 category_type = random.choices(category_list, weights=weights_list)[0]
-                amount = _get_transaction_amount_for_category(category_type)
+                user_income = user_profile.get("income", 50000)
+                amount = _get_transaction_amount_for_category(category_type, user_income)
+                
+                # Apply seasonal multiplier
+                tx_month = tx_date.month
+                if tx_month in SEASONAL_MULTIPLIERS:
+                    if category_type in SEASONAL_MULTIPLIERS[tx_month]:
+                        amount *= SEASONAL_MULTIPLIERS[tx_month][category_type]
+                        amount = round(amount, CURRENCY_DECIMAL_PLACES)
+                
+                # Apply day-of-week multiplier
+                day_multiplier = get_day_of_week_multiplier(tx_date, category_type)
+                amount *= day_multiplier
+                amount = round(amount, CURRENCY_DECIMAL_PLACES)
+                
                 merchant_name = random.choice(categories.get(category_type, categories["shopping"]))
                 category = get_category_for_merchant(merchant_name, category_type)
                 pending = random.choice([0, 1]) if tx_date > datetime.now() - timedelta(days=2) else 0
@@ -658,28 +849,39 @@ def generate_transactions(
         else:  # savings account
             if persona_group == "savings_builder":
                 # Priority 4: Generate positive net inflow
-                # Target: net_inflow >= 200/month = 1200 over 180 days
-                # More deposits than withdrawals
-                if random.random() < 0.7:  # 70% deposits
-                    amount = round(random.uniform(100.0, 500.0), CURRENCY_DECIMAL_PLACES)
+                # Use automatic transfers (70%) and manual deposits (30%)
+                if random.random() < 0.70:  # 70% automatic transfers
+                    amount = round(random.uniform(200.0, 500.0), CURRENCY_DECIMAL_PLACES)
+                    merchant_name = "Automatic Transfer from Checking"
+                    category = ["Transfer", "Transfer"]
+                    pending = 0
+                    payment_channel = "other"
+                else:  # 30% manual deposits
+                    amount = round(random.uniform(100.0, 300.0), CURRENCY_DECIMAL_PLACES)
                     merchant_name = "Savings Deposit"
                     category = ["Transfer", "Deposit"]
-                else:  # 30% withdrawals
-                    amount = -round(random.uniform(50.0, 200.0), CURRENCY_DECIMAL_PLACES)
-                    merchant_name = "Savings Withdrawal"
-                    category = ["Transfer", "Withdrawal"]
+                    pending = 0
+                    payment_channel = "other"
             else:
-                # Other personas: balanced deposits/withdrawals
-                if random.random() < 0.3:  # 30% chance of withdrawal
+                # Other personas: mix of transfers and deposits/withdrawals
+                if random.random() < 0.50:  # 50% automatic transfers
+                    amount = round(random.uniform(100.0, 400.0), CURRENCY_DECIMAL_PLACES)
+                    merchant_name = "Automatic Transfer from Checking"
+                    category = ["Transfer", "Transfer"]
+                    pending = 0
+                    payment_channel = "other"
+                elif random.random() < 0.3:  # 30% chance of withdrawal
                     amount = -round(random.uniform(50.0, 500.0), CURRENCY_DECIMAL_PLACES)
                     merchant_name = "Savings Withdrawal"
                     category = ["Transfer", "Withdrawal"]
-                else:  # 70% chance of deposit
+                    pending = 0
+                    payment_channel = "other"
+                else:  # 20% manual deposits
                     amount = round(random.uniform(100.0, 1000.0), CURRENCY_DECIMAL_PLACES)
                     merchant_name = "Savings Deposit"
                     category = ["Transfer", "Deposit"]
-            pending = 0
-            payment_channel = "other"
+                    pending = 0
+                    payment_channel = "other"
         
         # Generate location data (for non-transfer transactions)
         if category[0] != "Transfer":
@@ -688,9 +890,13 @@ def generate_transactions(
             location_region = fake.state_abbr()
             location_postal_code = fake.zipcode()
             location_country = "US"
-            # Generate approximate coordinates for US (rough bounds)
-            location_lat = round(random.uniform(25.0, 49.0), 6)
-            location_lon = round(random.uniform(-125.0, -66.0), 6)
+            # Use user's metro area with small variance for coordinates
+            metro_area = user_profile.get("metro_area", METRO_AREAS[0])
+            base_lat = metro_area["lat"]
+            base_lon = metro_area["lon"]
+            # Add variance of ±0.5 degrees (roughly 35 miles)
+            location_lat = round(base_lat + random.uniform(-0.5, 0.5), 6)
+            location_lon = round(base_lon + random.uniform(-0.5, 0.5), 6)
         else:
             location_address = None
             location_city = None
@@ -702,7 +908,7 @@ def generate_transactions(
         
         # Generate authorized_date (same as date for most transactions, or 1-2 days before for pending)
         if pending:
-            authorized_date = (tx_date + timedelta(days=random.randint(1, 2))).strftime("%Y-%m-%d")
+            authorized_date = (tx_date - timedelta(days=random.randint(1, 2))).strftime("%Y-%m-%d")
         else:
             authorized_date = tx_date.strftime("%Y-%m-%d")
         
@@ -726,6 +932,58 @@ def generate_transactions(
             "payment_channel": payment_channel,
             "authorized_date": authorized_date,
         })
+        
+        # Transaction clustering: 30% chance of related transaction for shopping categories
+        # This creates realistic shopping patterns (multiple stores in one trip)
+        if category[0] != "Transfer" and category_type in ["groceries", "shopping", "restaurants"]:
+            if random.random() < 0.30:  # 30% chance of cluster transaction
+                transaction_counter += 1
+                cluster_transaction_id = f"tx_{account_id}_{transaction_counter:06d}"
+                
+                # Generate within 1 hour (same day)
+                cluster_time_offset = random.uniform(0, 1/24)  # Up to 1 hour
+                cluster_tx_date = tx_date + timedelta(days=cluster_time_offset)
+                
+                # Smaller amount (50-80% of original)
+                cluster_amount_factor = random.uniform(0.5, 0.8)
+                cluster_amount = round(amount * cluster_amount_factor, CURRENCY_DECIMAL_PLACES)
+                
+                # Different merchant, same category
+                cluster_merchant = random.choice(categories.get(category_type, categories["shopping"]))
+                # Make sure it's different from the original merchant
+                attempts = 0
+                while cluster_merchant == merchant_name and attempts < 5:
+                    cluster_merchant = random.choice(categories.get(category_type, categories["shopping"]))
+                    attempts += 1
+                
+                # Same location area but slight variance
+                if location_lat and location_lon:
+                    cluster_location_lat = round(location_lat + random.uniform(-0.01, 0.01), 6)
+                    cluster_location_lon = round(location_lon + random.uniform(-0.01, 0.01), 6)
+                else:
+                    cluster_location_lat = location_lat
+                    cluster_location_lon = location_lon
+                
+                transactions.append({
+                    "transaction_id": cluster_transaction_id,
+                    "account_id": account_id,
+                    "user_id": user_profile["user_id"],
+                    "date": cluster_tx_date.strftime("%Y-%m-%d"),
+                    "amount": cluster_amount,
+                    "merchant_name": cluster_merchant,
+                    "category": json.dumps(category),
+                    "pending": pending,
+                    "location_address": location_address,
+                    "location_city": location_city,
+                    "location_region": location_region,
+                    "location_postal_code": location_postal_code,
+                    "location_country": location_country,
+                    "location_lat": cluster_location_lat,
+                    "location_lon": cluster_location_lon,
+                    "iso_currency_code": "USD",
+                    "payment_channel": payment_channel,
+                    "authorized_date": authorized_date if not pending else (cluster_tx_date - timedelta(days=random.randint(1, 2))).strftime("%Y-%m-%d"),
+                })
     
     return transactions
 
@@ -876,11 +1134,15 @@ def generate_liabilities(
     return liabilities
 
 
-def assign_persona_groups_to_users(users: List[Dict[str, Any]]) -> Dict[str, str]:
+def assign_persona_groups_to_users(users: List[Dict[str, Any]], users_per_persona: int = 20) -> Dict[str, str]:
     """Assign persona groups to users before data generation.
     
-    Assigns up to 100 users as constructed (20 per persona), then marks remaining
-    users as unconstructed. If fewer than 100 users, assigns proportionally.
+    Assigns users as constructed (users_per_persona per persona), then marks remaining
+    users as unconstructed. If fewer than users_per_persona * 5 total users, assigns proportionally.
+    
+    Args:
+        users: List of user dictionaries
+        users_per_persona: Number of users per persona (default: 20)
     
     Returns:
         Dict mapping user_id to persona_group
@@ -892,26 +1154,26 @@ def assign_persona_groups_to_users(users: List[Dict[str, Any]]) -> Dict[str, str
     
     persona_groups = {}
     
-    # Target: 100 constructed users (20 per persona), remainder unconstructed
-    constructed_target = 100
-    users_per_persona_target = 20
+    # Target: users_per_persona * 5 personas constructed users, remainder unconstructed
+    constructed_target = users_per_persona * 5
+    users_per_persona_target = users_per_persona
     
     # Calculate how many constructed users we can actually assign
     constructed_count = min(constructed_target, num_users)
     
-    # Calculate users per persona (proportional if fewer than 100 total)
+    # Calculate users per persona (proportional if fewer than constructed_target total)
     if num_users >= constructed_target:
-        # We have enough users: assign exactly 20 per persona
-        users_per_persona = users_per_persona_target
+        # We have enough users: assign exactly users_per_persona per persona
+        users_per_persona_actual = users_per_persona_target
     else:
-        # Fewer than 100 users: assign proportionally
-        users_per_persona = max(1, constructed_count // 5)  # Divide by 5 personas
+        # Fewer than constructed_target users: assign proportionally
+        users_per_persona_actual = max(1, constructed_count // 5)  # Divide by 5 personas
     
-    high_util_count = users_per_persona
-    variable_income_count = users_per_persona
-    subscription_heavy_count = users_per_persona
-    savings_builder_count = users_per_persona
-    general_wellness_count = users_per_persona
+    high_util_count = users_per_persona_actual
+    variable_income_count = users_per_persona_actual
+    subscription_heavy_count = users_per_persona_actual
+    savings_builder_count = users_per_persona_actual
+    general_wellness_count = users_per_persona_actual
     
     # Adjust to not exceed constructed_count
     total_assigned = high_util_count + variable_income_count + subscription_heavy_count + savings_builder_count + general_wellness_count
@@ -1346,21 +1608,22 @@ def determine_homeownership_by_quintile(user_income: float, all_incomes: List[fl
     }
 
 
-def generate_all_data(count: int = 200, output_dir: str = "data", days: int = 200) -> None:
+def generate_all_data(count: int = 200, output_dir: str = "data", days: int = 180, users_per_persona: int = 20) -> None:
     """Generate all synthetic data and export to files.
     
     This is the main entry point for data generation.
-    Generates 200 users by default: 100 constructed (20 per persona) + 100 unconstructed.
+    Generates users with constructed personas and unconstructed users.
     
     Args:
         count: Number of users to generate (default: 200)
         output_dir: Output directory path (default: "data")
-        days: Number of days of transaction history to generate (default: 200)
+        days: Number of days of transaction history to generate (default: 180)
+        users_per_persona: Number of users per persona (default: 20)
     """
     print(f"Generating synthetic data for {count} users over {days} days...")
-    constructed_count = min(100, count)
-    unconstructed_count = max(0, count - 100)
-    print(f"  - Up to {constructed_count} users will be constructed (proportional per persona)")
+    constructed_count = min(users_per_persona * 5, count)
+    unconstructed_count = max(0, count - constructed_count)
+    print(f"  - Up to {constructed_count} users will be constructed ({users_per_persona} per persona)")
     if unconstructed_count > 0:
         print(f"  - Remaining {unconstructed_count} users will be unconstructed")
     
@@ -1370,7 +1633,7 @@ def generate_all_data(count: int = 200, output_dir: str = "data", days: int = 20
     
     # Assign persona groups BEFORE generating transactions
     from collections import Counter
-    persona_groups = assign_persona_groups_to_users(users)
+    persona_groups = assign_persona_groups_to_users(users, users_per_persona=users_per_persona)
     print(f"Assigned persona groups: {dict(Counter(persona_groups.values()))}")
     
     # Collect all incomes for quintile calculation

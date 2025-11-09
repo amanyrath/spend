@@ -14,7 +14,7 @@ export function RationaleBox({ rationale, className, expandable = false }: Ratio
   return (
     <div
       className={cn(
-        "bg-[var(--color-rationale-bg)] border-l-4 border-[var(--color-primary)] p-4 rounded-md",
+        "bg-[var(--color-rationale-bg)] border-l-4 border-trust-primary p-4 font-mono",
         className
       )}
       role="region"
@@ -22,12 +22,12 @@ export function RationaleBox({ rationale, className, expandable = false }: Ratio
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
-          <div className="text-xs font-semibold text-[var(--color-primary)] uppercase tracking-wide mb-2">
+          <div className="text-xs font-semibold font-mono text-trust-primary uppercase tracking-wider mb-2">
             Why we're showing this
           </div>
           <div
             className={cn(
-              "text-sm text-foreground leading-relaxed",
+              "text-sm text-retro-charcoal leading-relaxed font-mono",
               !expanded && expandable && "line-clamp-2"
             )}
           >
@@ -43,7 +43,7 @@ export function RationaleBox({ rationale, className, expandable = false }: Ratio
           >
             <ChevronDown
               className={cn(
-                "h-4 w-4 text-[var(--color-primary)] transition-transform",
+                "h-4 w-4 text-trust-primary transition-transform",
                 expanded && "rotate-180"
               )}
             />
@@ -53,4 +53,7 @@ export function RationaleBox({ rationale, className, expandable = false }: Ratio
     </div>
   )
 }
+
+
+
 

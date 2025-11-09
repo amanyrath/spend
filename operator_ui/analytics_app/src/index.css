@@ -1,0 +1,34 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@layer base {
+  * {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+  }
+  
+  body {
+    background: #FFFFFF;
+    color: #1a1a1a;
+  }
+}
+
+@layer utilities {
+  .text-primary {
+    color: #1e40af;
+  }
+  
+  .bg-primary {
+    background-color: #1e40af;
+  }
+  
+  .border-dashed-custom {
+    border-style: dashed;
+    border-color: #e5e7eb;
+  }
+}
+
+
+
+
+
+

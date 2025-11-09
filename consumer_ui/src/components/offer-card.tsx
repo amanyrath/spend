@@ -1,8 +1,8 @@
 import * as React from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { RetroCard, RetroCardContent, RetroCardDescription, RetroCardFooter, RetroCardHeader, RetroCardTitle } from "@/components/ui/retro-card"
+import { RetroButton } from "@/components/ui/retro-button"
 import { RationaleBox } from "@/components/rationale-box"
-import { Badge } from "@/components/ui/badge"
+import { RetroBadge } from "@/components/ui/retro-badge"
 import { cn } from "@/lib/utils"
 import { ExternalLink, CheckCircle2, AlertCircle } from "lucide-react"
 
@@ -30,8 +30,8 @@ export function OfferCard({
   const isEligible = eligibility === "eligible"
 
   return (
-    <Card className={cn("w-full", className)}>
-      <CardHeader>
+    <RetroCard className={cn("w-full", className)}>
+      <RetroCardHeader>
         <div className="flex items-start gap-4">
           {partner_logo_url && (
             <div className="flex-shrink-0">
@@ -49,23 +49,19 @@ export function OfferCard({
           <div className="flex-1">
             <div className="flex items-start justify-between gap-4 mb-2">
               <div className="flex-1">
-                <CardTitle className="text-xl mb-1">{title}</CardTitle>
-                <CardDescription className="text-sm text-muted-foreground">
+                <RetroCardTitle className="text-lg font-mono mb-1">{title}</RetroCardTitle>
+                <RetroCardDescription className="text-xs font-mono">
                   {partner}
-                </CardDescription>
+                </RetroCardDescription>
               </div>
-              <Badge
-                className={cn(
-                  "flex items-center gap-1",
-                  isEligible
-                    ? "bg-green-100 text-green-800 border-green-200"
-                    : "bg-yellow-100 text-yellow-800 border-yellow-200"
-                )}
+              <RetroBadge
+                variant={isEligible ? "success" : "warning"}
+                className="flex items-center gap-1"
               >
                 {isEligible ? (
                   <>
                     <CheckCircle2 className="h-3 w-3" />
-                    You may be eligible
+                    Eligible
                   </>
                 ) : (
                   <>
@@ -73,22 +69,22 @@ export function OfferCard({
                     Requirements not met
                   </>
                 )}
-              </Badge>
+              </RetroBadge>
             </div>
-            <CardDescription className="text-base mt-2">{description}</CardDescription>
+            <RetroCardDescription className="text-sm font-mono mt-2 normal-case">{description}</RetroCardDescription>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      </RetroCardHeader>
+      <RetroCardContent className="space-y-4">
         <RationaleBox rationale={rationale} />
         {!isEligible && (
-          <div className="text-sm text-muted-foreground bg-yellow-50 border border-yellow-200 rounded-md p-3">
+          <div className="text-sm font-mono text-retro-charcoal-light bg-yellow-50 border border-yellow-200 p-3">
             This offer may require specific eligibility criteria that are not currently met. Check with the partner for details.
           </div>
         )}
-      </CardContent>
-      <CardFooter className="flex flex-col gap-3">
-        <Button
+      </RetroCardContent>
+      <RetroCardFooter className="flex flex-col gap-3">
+        <RetroButton
           variant="default"
           className="w-full"
           onClick={() => {
@@ -99,12 +95,15 @@ export function OfferCard({
         >
           Learn More
           <ExternalLink className="ml-2 h-4 w-4" />
-        </Button>
-        <p className="text-xs text-muted-foreground text-center">
+        </RetroButton>
+        <p className="text-xs font-mono text-retro-charcoal-light text-center">
           SpendSense may receive compensation. This is not a recommendation.
         </p>
-      </CardFooter>
-    </Card>
+      </RetroCardFooter>
+    </RetroCard>
   )
 }
+
+
+
 

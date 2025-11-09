@@ -262,3 +262,13 @@ def test_generate_recommendations_full_flow(sample_user_id, mock_signals, mock_p
         # Verify store_recommendation was called for each recommendation
         assert mock_store.call_count == len(recommendations)
 
+
+
+
+
+
+
+
+
+
+

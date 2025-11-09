@@ -18,17 +18,22 @@ def is_port_open(host: str, port: int) -> bool:
 
 def auto_detect_emulator():
     """Automatically detect if Firebase emulator is running and set environment variable."""
+    # Skip auto-detection if SQLite is explicitly requested
+    if os.getenv('USE_SQLITE', '').lower() == 'true':
+        return
+    
     # Only auto-detect if not already set
     if os.getenv('FIRESTORE_EMULATOR_HOST') is None:
         # Check if emulator is explicitly requested
         if os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true':
-            os.environ['FIRESTORE_EMULATOR_HOST'] = 'localhost:8080'
-        # Auto-detect: check if port 8080 is open (Firebase emulator default)
-        elif is_port_open('localhost', 8080):
-            os.environ['FIRESTORE_EMULATOR_HOST'] = 'localhost:8080'
+            os.environ['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080'
+        # Auto-detect: check if port 8080 is open on localhost or 127.0.0.1
+        elif is_port_open('localhost', 8080) or is_port_open('127.0.0.1', 8080):
+            # Prefer 127.0.0.1 as it matches firebase.json configuration
+            os.environ['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080'
             # Optionally print a message (but only once)
             if not os.getenv('_FIRESTORE_AUTO_DETECTED'):
-                print("✓ Auto-detected Firebase emulator running on localhost:8080")
+                print("✓ Auto-detected Firebase emulator running on 127.0.0.1:8080")
                 os.environ['_FIRESTORE_AUTO_DETECTED'] = 'true'
 
 # Auto-detect emulator on import
@@ -44,49 +49,48 @@ def initialize_firebase():
     if _initialized:
         return
     
+    # Skip Firebase initialization if SQLite is explicitly requested
+    if os.getenv('USE_SQLITE', '').lower() == 'true':
+        _initialized = True
+        return
+    
     # Check if Firebase emulator is enabled
     use_emulator = os.getenv('FIRESTORE_EMULATOR_HOST') is not None or os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true'
     
     if use_emulator:
         # Use Firebase emulator for local development
         emulator_host = os.getenv('FIRESTORE_EMULATOR_HOST', 'localhost:8080')
-        print(f"Using Firebase emulator at {emulator_host}")
+        print("=" * 60)
+        print("🔥 INITIALIZING FIREBASE EMULATOR")
+        print("=" * 60)
+        print(f"📍 Target: {emulator_host}")
+        print("=" * 60)
         
-        # Initialize Firebase Admin with minimal credential for emulator
-        # The emulator doesn't validate credentials, but we need something valid-formatted
+        # Initialize Firebase Admin for emulator
+        # The emulator doesn't validate credentials, but SDK needs valid format
         if not firebase_admin._apps:
-            # Try to use existing service account file if available (emulator won't validate it)
+            # Use service account file if available (real or dummy - emulator doesn't care)
             cred_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', 'firebase-service-account.json')
             if os.path.exists(cred_path):
                 try:
                     cred = credentials.Certificate(cred_path)
                     firebase_admin.initialize_app(cred)
-                except Exception:
-                    # If that fails, use a minimal dummy credential
-                    cred = credentials.Certificate({
-                        "type": "service_account",
-                        "project_id": "demo-project",
-                        "private_key_id": "dummy-key-id",
-                        "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj\nMzEfYyjiWA4R4/M2bS1+f4EHgqdgBZWbsmDLKcm+9K/M7CVyPFDz/zvqcJxl+t\n-----END PRIVATE KEY-----\n",
-                        "client_email": "dummy@demo-project.iam.gserviceaccount.com",
-                        "client_id": "123456789",
-                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                        "token_uri": "https://oauth2.googleapis.com/token",
-                    })
-                    firebase_admin.initialize_app(cred)
+                except Exception as e:
+                    print(f"Warning: Failed to load service account file: {e}")
+                    print("Trying to continue with emulator...")
+                    # If file exists but is invalid, try to initialize anyway
+                    # The emulator may still work
+                    try:
+                        firebase_admin.initialize_app(options={'projectId': 'demo-project'})
+                    except Exception:
+                        pass
             else:
-                # Use minimal dummy credential
-                cred = credentials.Certificate({
-                    "type": "service_account",
-                    "project_id": "demo-project",
-                    "private_key_id": "dummy-key-id",
-                    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj\nMzEfYyjiWA4R4/M2bS1+f4EHgqdgBZWbsmDLKcm+9K/M7CVyPFDz/zvqcJxl+t\n-----END PRIVATE KEY-----\n",
-                    "client_email": "dummy@demo-project.iam.gserviceaccount.com",
-                    "client_id": "123456789",
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                })
-                firebase_admin.initialize_app(cred)
+                # No service account file - try to initialize with minimal config
+                # This may fail, but emulator should still work if FIRESTORE_EMULATOR_HOST is set
+                try:
+                    firebase_admin.initialize_app(options={'projectId': 'demo-project'})
+                except Exception:
+                    pass
         _initialized = True
         return
     
@@ -99,6 +103,17 @@ def initialize_firebase():
         # No Firebase credentials - skip initialization (will use SQLite)
         _initialized = True
         return
+    
+    # Production Firebase - warn before initializing
+    print("=" * 60)
+    print("🔥 INITIALIZING FIREBASE PRODUCTION")
+    print("=" * 60)
+    print("⚠️  WARNING: Connecting to Firebase PRODUCTION environment")
+    if has_file:
+        print(f"📁 Using credentials file: {cred_path}")
+    if has_env_var:
+        print("📁 Using credentials from FIREBASE_SERVICE_ACCOUNT environment variable")
+    print("=" * 60)
     
     if os.getenv('FIREBASE_SERVICE_ACCOUNT'):
         # Vercel: service account is stored as JSON string in environment variable
@@ -132,6 +147,11 @@ def get_db():
     """Get Firestore client, initializing if needed"""
     global _db
     if _db is None:
+        # Skip Firebase if SQLite is explicitly requested
+        if os.getenv('USE_SQLITE', '').lower() == 'true':
+            _db = None
+            return None
+        
         # Re-check for emulator (in case it was started after module import)
         auto_detect_emulator()
         
@@ -518,3 +538,289 @@ def get_all_recommendations() -> List[Dict[str, Any]]:
             all_recommendations.append(rec_data)
     
     return all_recommendations
+
+
+def store_operator_action(
+    operator_id: str,
+    user_id: str,
+    action_type: str,
+    reason: str,
+    recommendation_id: Optional[str] = None
+) -> str:
+    """Store an operator action in the audit trail.
+    
+    Args:
+        operator_id: ID of the operator performing the action
+        user_id: ID of the user the action is performed on
+        action_type: Type of action ('override' or 'flag')
+        reason: Reason for the action
+        recommendation_id: ID of recommendation (for override actions, None for flag)
+        
+    Returns:
+        ID of the created action document
+    """
+    client = get_db()
+    if client is None:
+        raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
+    
+    action_ref = client.collection('users').document(user_id)\
+                       .collection('operator_actions').document()
+    
+    action_data = {
+        'operator_id': operator_id,
+        'user_id': user_id,
+        'action_type': action_type,
+        'reason': reason,
+        'created_at': firestore.SERVER_TIMESTAMP
+    }
+    
+    if recommendation_id:
+        action_data['recommendation_id'] = recommendation_id
+    
+    action_ref.set(action_data)
+    return action_ref.id
+
+
+def get_operator_actions(
+    user_id: Optional[str] = None,
+    action_type: Optional[str] = None,
+    limit: Optional[int] = None,
+    offset: int = 0
+) -> List[Dict[str, Any]]:
+    """Get operator actions from the audit trail.
+    
+    Args:
+        user_id: Filter by user_id (required)
+        action_type: Filter by action_type (optional)
+        limit: Maximum number of results (optional)
+        offset: Number of results to skip
+        
+    Returns:
+        List of operator action records
+    """
+    client = get_db()
+    if client is None:
+        raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
+    
+    if not user_id:
+        return []
+    
+    actions_ref = client.collection('users').document(user_id)\
+                        .collection('operator_actions')
+    
+    if action_type:
+        actions_ref = actions_ref.where('action_type', '==', action_type)
+    
+    # Order by created_at descending
+    actions_ref = actions_ref.order_by('created_at', direction=firestore.Query.DESCENDING)
+    
+    # Apply pagination
+    if offset > 0:
+        # Firestore doesn't support offset directly, need to use start_after
+        # For simplicity, we'll fetch all and slice (fine for small datasets)
+        pass
+    
+    actions = []
+    for action_doc in actions_ref.stream():
+        action_data = action_doc.to_dict()
+        action_data['id'] = action_doc.id
+        actions.append(action_data)
+    
+    # Apply offset and limit manually (Firestore limitation)
+    if offset > 0:
+        actions = actions[offset:]
+    
+    if limit:
+        actions = actions[:limit]
+    
+    return actions
+
+
+def get_consent_status(user_id: str) -> Optional[Dict[str, Any]]:
+    """Get consent status for a user.
+    
+    Args:
+        user_id: User ID
+        
+    Returns:
+        Dictionary with granted, timestamp, version
+    """
+    client = get_db()
+    if client is None:
+        raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
+    
+    user_ref = client.collection('users').document(user_id)
+    user_doc = user_ref.get()
+    
+    if not user_doc.exists:
+        return {"granted": False, "timestamp": None, "version": None}
+    
+    user_data = user_doc.to_dict()
+    return {
+        "granted": user_data.get("consent_status", False),
+        "timestamp": user_data.get("consent_timestamp"),
+        "version": user_data.get("consent_version", "1.0")
+    }
+
+
+def store_consent(
+    user_id: str,
+    granted: bool,
+    ip_address: Optional[str] = None,
+    version: str = "1.0"
+) -> None:
+    """Store or update user consent.
+    
+    Args:
+        user_id: User ID
+        granted: Whether consent is granted
+        ip_address: IP address of the request (optional)
+        version: Consent version (default: "1.0")
+    """
+    client = get_db()
+    if client is None:
+        raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
+    
+    user_ref = client.collection('users').document(user_id)
+    
+    update_data = {
+        'consent_status': granted,
+        'consent_version': version
+    }
+    
+    if granted:
+        update_data['consent_timestamp'] = firestore.SERVER_TIMESTAMP
+    else:
+        update_data['consent_timestamp'] = None
+    
+    user_ref.update(update_data)
+    
+    # Log consent action to audit trail
+    audit_ref = client.collection('consent_audit_log').document()
+    audit_ref.set({
+        'user_id': user_id,
+        'action': 'granted' if granted else 'revoked',
+        'ip_address': ip_address or 'unknown',
+        'timestamp': firestore.SERVER_TIMESTAMP
+    })
+
+
+def revoke_consent(user_id: str) -> None:
+    """Revoke user consent.
+    
+    Args:
+        user_id: User ID
+    """
+    store_consent(user_id, granted=False)
+
+
+def get_all_chat_logs_firestore(
+    user_id: Optional[str] = None,
+    limit: Optional[int] = None,
+    offset: int = 0,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> list:
+    """Get chat logs with optional filtering from Firestore.
+    
+    Args:
+        user_id: Filter by user_id (optional)
+        limit: Maximum number of results (optional)
+        offset: Number of results to skip
+        start_date: Start date filter (ISO format)
+        end_date: End date filter (ISO format)
+        
+    Returns:
+        List of chat log records
+    """
+    client = get_db()
+    if client is None:
+        raise RuntimeError("Firebase not initialized")
+    
+    if user_id:
+        # Query specific user's chat logs
+        query = client.collection('users').document(user_id).collection('chat_logs')
+    else:
+        # Query all chat logs across users
+        query = client.collection_group('chat_logs')
+    
+    if start_date:
+        query = query.where('created_at', '>=', start_date)
+    if end_date:
+        query = query.where('created_at', '<=', end_date)
+    
+    query = query.order_by('created_at', direction=firestore.Query.DESCENDING)
+    
+    if limit:
+        query = query.limit(limit)
+    if offset:
+        query = query.offset(offset)
+    
+    docs = query.stream()
+    return [{'id': doc.id, **doc.to_dict()} for doc in docs]
+
+
+def get_recommendation_traces_firestore(
+    user_id: Optional[str] = None,
+    limit: Optional[int] = None,
+    offset: int = 0,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> list:
+    """Get recommendations with optional filtering from Firestore.
+    
+    Args:
+        user_id: Filter by user_id (optional)
+        limit: Maximum number of results (optional)
+        offset: Number of results to skip
+        start_date: Start date filter (ISO format)
+        end_date: End date filter (ISO format)
+        
+    Returns:
+        List of recommendation records
+    """
+    client = get_db()
+    if client is None:
+        raise RuntimeError("Firebase not initialized")
+    
+    if user_id:
+        query = client.collection('users').document(user_id).collection('recommendations')
+    else:
+        query = client.collection_group('recommendations')
+    
+    if start_date:
+        query = query.where('shown_at', '>=', start_date)
+    if end_date:
+        query = query.where('shown_at', '<=', end_date)
+    
+    query = query.order_by('shown_at', direction=firestore.Query.DESCENDING)
+    
+    if limit:
+        query = query.limit(limit)
+    if offset:
+        query = query.offset(offset)
+    
+    docs = query.stream()
+    return [{'recommendation_id': doc.id, **doc.to_dict()} for doc in docs]
+
+
+def get_timeline_events_firestore(
+    user_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> Dict[str, list]:
+    """Get all timeline events for a user from Firestore.
+    
+    Args:
+        user_id: User ID
+        start_date: Start date filter (ISO format)
+        end_date: End date filter (ISO format)
+        
+    Returns:
+        Dictionary with lists of different event types
+    """
+    return {
+        "chat_logs": get_all_chat_logs_firestore(user_id, start_date=start_date, end_date=end_date),
+        "recommendations": get_recommendation_traces_firestore(user_id, start_date=start_date, end_date=end_date),
+        "operator_actions": get_operator_actions(user_id, start_date=start_date, end_date=end_date),
+    }

@@ -20,6 +20,9 @@ from src.recommend.content_catalog import (
 )
 from src.recommend.rationale_generator import generate_rationale
 from src.guardrails.guardrails_ai import get_guardrails
+from src.utils.logging import get_logger
+
+logger = get_logger("recommend.engine")
 
 
 def match_education_content(persona: str, signals: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -175,8 +178,81 @@ def check_offer_eligibility(offer: Dict[str, Any], signals: Dict[str, Any]) -> b
     return True
 
 
+def build_customer_info_from_signals(signals: Dict[str, Any]) -> Optional['CustomerInfo']:
+    """Build CustomerInfo from SpendSense signals for credit offers API.
+    
+    This helper function converts SpendSense signal format to credit offers
+    CustomerInfo format, handling type conversions and missing fields gracefully.
+    
+    Args:
+        signals: Dictionary of SpendSense signals
+        
+    Returns:
+        CustomerInfo object or None if conversion fails
+    """
+    try:
+        from src.recommend.credit_offers import CustomerInfo, UtilizationLevel, AccountUtilization
+        
+        credit_signal = signals.get("credit_utilization", {})
+        savings_signal = signals.get("savings_behavior", {})
+        
+        # Convert utilization_level string to enum with error handling
+        utilization_level_str = credit_signal.get("utilization_level", "low").lower()
+        try:
+            utilization_level = UtilizationLevel(utilization_level_str)
+        except ValueError:
+            # Default to LOW if invalid value
+            logger.warning(f"Invalid utilization_level '{utilization_level_str}', defaulting to LOW")
+            utilization_level = UtilizationLevel.LOW
+        
+        # Build per_account_utilization list
+        per_account_utilization = []
+        accounts = credit_signal.get("accounts", [])
+        for acc in accounts:
+            try:
+                per_account_utilization.append(AccountUtilization(
+                    account_id=acc.get("account_id", ""),
+                    utilization=float(acc.get("utilization", 0.0)),
+                    credit_limit=float(acc.get("limit", 0.0)),
+                    balance=float(acc.get("balance", 0.0))
+                ))
+            except (ValueError, TypeError, KeyError) as e:
+                logger.warning(f"Error parsing account utilization: {e}, skipping account")
+                continue
+        
+        # Build CustomerInfo with defaults for missing fields
+        try:
+            customer_info = CustomerInfo(
+                total_utilization=float(credit_signal.get("total_utilization", 0.0)),
+                utilization_level=utilization_level,
+                interest_charged=float(credit_signal.get("interest_charged", 0.0)),
+                minimum_payment_only=bool(credit_signal.get("minimum_payment_only", False)),
+                is_overdue=bool(credit_signal.get("is_overdue", False)),
+                online_spending_share=float(credit_signal.get("online_spending_share", 0.0)),
+                per_account_utilization=per_account_utilization if per_account_utilization else None,
+                total_savings=float(savings_signal.get("total_savings", 0.0)),
+                net_inflow=float(savings_signal.get("net_inflow", 0.0)),
+                growth_rate=float(savings_signal.get("growth_rate", 0.0)),
+                emergency_fund_coverage=float(savings_signal.get("emergency_fund_coverage", 0.0)),
+                avg_monthly_savings=float(savings_signal.get("avg_monthly_savings", 0.0))
+            )
+            return customer_info
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error building CustomerInfo: {e}")
+            return None
+            
+    except ImportError as e:
+        logger.error(f"Error importing credit_offers module: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error building CustomerInfo: {e}", exc_info=True)
+        return None
+
+
 def match_offers(signals: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Match partner offers based on eligibility criteria.
+    
+    Includes both existing partner offers and credit offers from credit offers API.
     
     Args:
         signals: Dictionary of all computed signals
@@ -191,7 +267,55 @@ def match_offers(signals: Dict[str, Any]) -> List[Dict[str, Any]]:
         if check_offer_eligibility(offer, signals)
     ]
     
-    # Return 1-3 offers
+    # Add credit offers from credit offers API
+    try:
+        from src.recommend.credit_offers import create_prequalification
+        
+        customer_info = build_customer_info_from_signals(signals)
+        
+        if customer_info:
+            prequal_response = create_prequalification(customer_info)
+            
+            # Transform ProductOffer to partner offer format
+            for product in prequal_response.qualifiedProducts:
+                if product.matchPercentage >= 60:  # Match threshold
+                    try:
+                        partner_offer = {
+                            "offer_id": product.productId,
+                            "type": "partner_offer",
+                            "title": product.productDisplayName,
+                            "partner": "Credit Partner",  # Default partner name
+                            "summary": ". ".join(product.mainMarketingCopy),
+                            "rationale_template": product.matchReason,
+                            "eligibility_criteria": {},  # Already filtered by match percentage
+                            # Preserve credit-specific metadata
+                            "credit_rating": product.creditRating.value,
+                            "match_percentage": product.matchPercentage,
+                            "purchase_apr": product.purchaseApr,
+                            "intro_purchase_apr": product.introPurchaseApr,
+                            "intro_balance_transfer_apr": product.introBalanceTransferApr,
+                            "balance_transfer_fee": product.balanceTransferFee,
+                            "annual_fee": product.annualMembershipFee,
+                            "bonus_amount": product.bonusAmount,
+                            "bonus_requirement": product.bonusRequirement,
+                            "estimated_savings": product.estimatedSavings,
+                            "tier": product.tier,
+                            "code": product.code,
+                            "images": product.images
+                        }
+                        eligible_offers.append(partner_offer)
+                    except Exception as e:
+                        logger.warning(f"Error transforming ProductOffer {product.productId}: {e}, skipping")
+                        continue
+        else:
+            logger.debug("Could not build CustomerInfo from signals, skipping credit offers")
+            
+    except ImportError as e:
+        logger.warning(f"Credit offers module not available: {e}, continuing with existing offers only")
+    except Exception as e:
+        logger.warning(f"Error fetching credit offers: {e}, continuing with existing offers only", exc_info=True)
+    
+    # Return 1-3 offers total (combining both sources)
     return eligible_offers[:3]
 
 

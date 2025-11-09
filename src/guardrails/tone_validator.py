@@ -60,3 +60,13 @@ def check_prohibited_phrases(text: str) -> list[str]:
     
     return found_phrases
 
+
+
+
+
+
+
+
+
+
+

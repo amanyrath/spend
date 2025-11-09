@@ -59,3 +59,13 @@ python3 src/ingest/data_loader.py
 ls -lh data/
 ```
 
+
+
+
+
+
+
+
+
+
+
