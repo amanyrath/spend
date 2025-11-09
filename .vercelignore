@@ -1,0 +1,83 @@
+# Exclude unnecessary files from Vercel deployment to reduce function size
+
+# Virtual environment
+venv/
+.venv/
+env/
+.env
+
+# Node modules
+node_modules/
+consumer_ui/node_modules/
+operator_ui/node_modules/
+
+# Data files (not needed for API)
+data/
+*.csv
+*.db
+*.sqlite
+*.sqlite3
+
+# Documentation
+docs/
+*.md
+README.md
+
+# Test files
+tests/
+test_*.py
+*_test.py
+conftest.py
+
+# Development files
+*.ipynb
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Scripts (if not needed for API)
+scripts/
+
+# Evaluation results
+results/
+eval/
+
+# Frontend builds
+consumer_ui/dist/
+consumer_ui/src/
+consumer_ui/public/
+operator_ui/analytics_app/
+
+# Firebase files
+firebase.json
+firestore.rules
+firestore.indexes.json
+firestore-debug.log
+firebase-service-account.json.dummy
+
+# Python development
+requirements-dev.txt
+

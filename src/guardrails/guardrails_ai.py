@@ -6,8 +6,24 @@ with custom validators for financial education tone and prohibited phrases.
 
 import re
 from typing import Optional, List
-from guardrails import Guard, OnFailAction
-from guardrails.validators import Validator, register_validator
+
+# Make guardrails optional for Vercel deployment
+try:
+    from guardrails import Guard, OnFailAction
+    from guardrails.validators import Validator, register_validator
+    HAS_GUARDRAILS = True
+except ImportError:
+    # Guardrails not available - use fallback implementations
+    HAS_GUARDRAILS = False
+    Guard = None
+    OnFailAction = None
+    Validator = None
+    
+    def register_validator(name=None, data_type=None):
+        """Fallback decorator when guardrails not available."""
+        def decorator(cls):
+            return cls
+        return decorator
 
 # Try to import hub validators, but make them optional
 try:
@@ -42,15 +58,16 @@ MERCHANT_PII_PATTERNS = [
 
 
 @register_validator(name="prohibited_phrases", data_type="string")
-class ProhibitedPhrasesValidator(Validator):
+class ProhibitedPhrasesValidator(Validator if HAS_GUARDRAILS else object):
     """Custom validator for prohibited phrases in financial education context.
     
     Validates that text does not contain judgmental or shaming language
     specific to financial education.
     """
     
-    def __init__(self, prohibited_phrases: Optional[List[str]] = None, on_fail: Optional[OnFailAction] = None, **kwargs):
-        super().__init__(on_fail=on_fail, **kwargs)
+    def __init__(self, prohibited_phrases: Optional[List[str]] = None, on_fail: Optional[any] = None, **kwargs):
+        if HAS_GUARDRAILS:
+            super().__init__(on_fail=on_fail, **kwargs)
         self.prohibited_phrases = prohibited_phrases or PROHIBITED_PHRASES
     
     def validate(self, value: str, metadata: dict = None) -> str:
@@ -86,15 +103,16 @@ class ProhibitedPhrasesValidator(Validator):
 
 
 @register_validator(name="merchant_name_validator", data_type="string")
-class MerchantNameValidator(Validator):
+class MerchantNameValidator(Validator if HAS_GUARDRAILS else object):
     """Custom validator for merchant names to detect PII patterns.
     
     Validates that merchant names do not contain personally identifiable
     information patterns like email addresses, phone numbers, or account numbers.
     """
     
-    def __init__(self, patterns: Optional[List[tuple]] = None, on_fail: Optional[OnFailAction] = None, **kwargs):
-        super().__init__(on_fail=on_fail, **kwargs)
+    def __init__(self, patterns: Optional[List[tuple]] = None, on_fail: Optional[any] = None, **kwargs):
+        if HAS_GUARDRAILS:
+            super().__init__(on_fail=on_fail, **kwargs)
         self.patterns = patterns or MERCHANT_PII_PATTERNS
     
     def validate(self, value: str, metadata: dict = None) -> str:
@@ -137,6 +155,15 @@ class ChatGuardrails:
     
     def __init__(self):
         """Initialize guardrails with validators."""
+        if not HAS_GUARDRAILS:
+            # Fallback: use simple validation without guardrails library
+            self.guard = None
+            self.validators = [
+                ProhibitedPhrasesValidator(prohibited_phrases=PROHIBITED_PHRASES),
+                MerchantNameValidator(patterns=MERCHANT_PII_PATTERNS)
+            ]
+            return
+            
         validators = []
         
         # Add toxic language detection if available
@@ -174,6 +201,7 @@ class ChatGuardrails:
                 prohibited_phrases=PROHIBITED_PHRASES,
                 on_fail=OnFailAction.EXCEPTION
             ))
+        self.validators = None
     
     def validate(self, text: str) -> tuple[bool, Optional[str], List[str]]:
         """Validate text against guardrails.
@@ -190,6 +218,20 @@ class ChatGuardrails:
         if not text:
             return True, text, []
         
+        # Use fallback validation if guardrails not available
+        if not HAS_GUARDRAILS or self.guard is None:
+            errors = []
+            for validator in self.validators:
+                try:
+                    validator.validate(text)
+                except Exception as e:
+                    errors.append(str(e))
+            
+            if errors:
+                return False, text, errors
+            return True, text, []
+        
+        # Use full guardrails validation
         try:
             validated_text, *rest = self.guard.validate(text)
             return True, validated_text, []

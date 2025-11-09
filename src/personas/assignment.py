@@ -8,8 +8,16 @@ import json
 import os
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-import pandas as pd
-import numpy as np
+
+# Make pandas optional for Vercel deployment
+try:
+    import pandas as pd
+    import numpy as np
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
+    pd = None
+    np = None
 
 from src.database import db
 from src.features.signal_detection import get_user_features
