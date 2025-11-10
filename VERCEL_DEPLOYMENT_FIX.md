@@ -134,10 +134,26 @@ Consider:
 
 ## Environment Variables
 
-Ensure these are set in Vercel:
-- `OPENAI_API_KEY` - For chat functionality
-- `FIREBASE_SERVICE_ACCOUNT` or firebase-service-account.json - For Firebase/Firestore
-- Any other custom environment variables your app uses
+**Required** - Ensure these are set in Vercel Dashboard (Settings > Environment Variables):
+
+1. **`FIREBASE_SERVICE_ACCOUNT`** (Required)
+   - Firebase Admin SDK credentials as JSON string
+   - Get from: Firebase Console > Project Settings > Service Accounts > Generate New Private Key
+   - Format: Paste the entire JSON file contents as a single-line string
+   - Example: `{"type":"service_account","project_id":"your-project",...}`
+   - **Critical**: Without this, the API will crash on startup (Python process exit 1)
+
+2. **`OPENAI_API_KEY`** (Required for chat)
+   - OpenAI API key for chat functionality
+   - Get from: https://platform.openai.com/api-keys
+   - Format: `sk-...`
+   - Without this, chat endpoints will fail but other endpoints will work
+
+**How to Set in Vercel:**
+1. Go to your Vercel project dashboard
+2. Click Settings > Environment Variables
+3. Add each variable for Production, Preview, and Development environments
+4. Redeploy after adding variables
 
 ## Notes
 

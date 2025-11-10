@@ -131,7 +131,8 @@ def check_use_firestore():
 USE_FIRESTORE = check_use_firestore()
 
 # Create a convenience alias for backward compatibility
-firestore_db = firestore_get_db() if USE_FIRESTORE else None
+# Don't call firestore_get_db() during import - it will be called lazily when needed
+firestore_db = None
 
 # Initialize logger
 logger = get_logger("api")

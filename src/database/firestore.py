@@ -9,7 +9,7 @@ def is_port_open(host: str, port: int) -> bool:
     """Check if a port is open (i.e., service is running)."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.5)
+        sock.settimeout(0.1)  # Reduced from 0.5 to fail faster in serverless environments
         result = sock.connect_ex((host, port))
         sock.close()
         return result == 0
@@ -20,6 +20,11 @@ def auto_detect_emulator():
     """Automatically detect if Firebase emulator is running and set environment variable."""
     # Skip auto-detection if SQLite is explicitly requested
     if os.getenv('USE_SQLITE', '').lower() == 'true':
+        return
+    
+    # Skip auto-detection on Vercel/serverless environments to prevent hanging
+    # Vercel sets VERCEL=1, AWS Lambda sets AWS_LAMBDA_FUNCTION_NAME, etc.
+    if os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME') or os.getenv('FUNCTION_NAME'):
         return
     
     # Only auto-detect if not already set
