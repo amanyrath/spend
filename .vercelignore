@@ -84,7 +84,11 @@ requirements-dev.txt
 src/ingest/data_generator.py
 src/ingest/generate_demo_data.py
 src/ingest/push_from_sqlite.py
+src/ingest/push_to_production.py
 src/ingest/regenerate_data.py
+
+# SQLite database module (API uses Firestore on Vercel)
+src/database/
 
 # Compute modules (read from Firestore at runtime, not computed)
 src/features/compute_all.py
