@@ -88,7 +88,8 @@ src/ingest/push_to_production.py
 src/ingest/regenerate_data.py
 
 # SQLite database module (API uses Firestore on Vercel)
-src/database/
+# Note: Only exclude db.py (SQLite), keep firestore.py (required for Vercel)
+src/database/db.py
 
 # Compute modules (read from Firestore at runtime, not computed)
 src/features/compute_all.py
