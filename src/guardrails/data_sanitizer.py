@@ -12,7 +12,15 @@ import random
 import re
 from typing import Dict, List, Optional, Any, Tuple
 
-from guardrails import Guard, OnFailAction
+# Make guardrails optional for Vercel deployment
+try:
+    from guardrails import Guard, OnFailAction
+    HAS_GUARDRAILS = True
+except ImportError:
+    # Guardrails not available - use fallback implementations
+    HAS_GUARDRAILS = False
+    Guard = None
+    OnFailAction = None
 
 # Set up logging
 logger = logging.getLogger(__name__)
