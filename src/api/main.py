@@ -32,7 +32,8 @@ from src.database.db import (
     revoke_consent as sqlite_revoke_consent
 )
 from src.personas.assignment import get_persona_assignment
-from src.features.signal_detection import get_user_features, compute_all_features
+from src.features.signal_detection import get_user_features
+# compute_all_features removed - not needed for production API (features are pre-computed)
 from src.api.exceptions import (
     SpendSenseException,
     UserNotFoundError,
@@ -371,10 +372,6 @@ def root():
                 <div class="endpoint">
                     <div class="endpoint-label">Get User Signals</div>
                     <div class="endpoint-path">GET /api/users/{user_id}/signals</div>
-                </div>
-                <div class="endpoint">
-                    <div class="endpoint-label">Compute User Features</div>
-                    <div class="endpoint-path">POST /api/users/{user_id}/compute-features?time_window=30d&force_recompute=false</div>
                 </div>
                 <div class="endpoint">
                     <div class="endpoint-label">Get User Recommendations</div>
@@ -1128,9 +1125,13 @@ def get_user_signals(user_id: str, time_window: str = "30d"):
         raise HTTPException(status_code=500, detail=f"Error fetching signals: {str(e)}")
 
 
+# NOTE: compute-features endpoint disabled for production deployment
+# Features are pre-computed via ETL pipeline and stored in Firestore
+# This reduces serverless function size by avoiding compute dependencies
+"""
 @app.post("/api/users/{user_id}/compute-features")
 def compute_features(user_id: str, time_window: str = "30d", force_recompute: bool = False):
-    """Compute behavioral signals for a user.
+    '''Compute behavioral signals for a user.
     
     Args:
         user_id: User identifier (path parameter)
@@ -1144,7 +1145,7 @@ def compute_features(user_id: str, time_window: str = "30d", force_recompute: bo
         404: User not found
         400: Invalid time_window parameter
         500: Computation error
-    """
+    '''
     try:
         # Validate user_id format
         is_valid, error_msg = validate_user_id(user_id)
@@ -1211,6 +1212,7 @@ def compute_features(user_id: str, time_window: str = "30d", force_recompute: bo
             status_code=500,
             detail=f"Error computing features: {str(e)}"
         )
+"""
 
 
 def _derive_tags_from_category(category: str) -> List[str]:
