@@ -17,6 +17,7 @@ data/
 *.db
 *.sqlite
 *.sqlite3
+*.parquet
 
 # Documentation
 docs/
@@ -58,18 +59,16 @@ dist/
 .gitignore
 .gitattributes
 
-# Scripts (if not needed for API)
+# Scripts (not needed for API)
 scripts/
 
 # Evaluation results
 results/
 eval/
 
-# Frontend builds
-consumer_ui/dist/
-consumer_ui/src/
-consumer_ui/public/
-operator_ui/analytics_app/
+# Frontend builds (completely exclude)
+consumer_ui/
+operator_ui/
 
 # Firebase files
 firebase.json
@@ -80,4 +79,27 @@ firebase-service-account.json.dummy
 
 # Python development
 requirements-dev.txt
+
+# Data generation modules (not needed at runtime)
+src/ingest/data_generator.py
+src/ingest/generate_demo_data.py
+src/ingest/push_from_sqlite.py
+src/ingest/regenerate_data.py
+
+# Compute modules (read from Firestore at runtime, not computed)
+src/features/compute_all.py
+src/features/compute_all_vectorized.py
+
+# Persona assignment modules (read from Firestore at runtime)
+src/personas/assign_all.py
+src/personas/assign_all_vectorized.py
+
+# Recommendation generation modules (read from Firestore at runtime)
+src/recommend/generate_all.py
+src/recommend/generate_all_vectorized.py
+
+# Other heavy files
+*.log
+.github/
+.vercel/
 
