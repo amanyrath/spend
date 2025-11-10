@@ -28,8 +28,14 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     if db_path is None:
         db_path = str(DEFAULT_DB_PATH)
     
-    # Ensure directory exists
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    # Ensure directory exists (only when actually connecting)
+    try:
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    except (OSError, PermissionError):
+        # On read-only filesystems (like Vercel), this will fail
+        # Try using an in-memory database instead
+        if not os.path.exists(db_path):
+            db_path = ":memory:"
     
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row  # Enable column access by name
