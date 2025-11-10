@@ -13,7 +13,15 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import json
 
-from src.database.db import get_db_connection, DEFAULT_DB_PATH
+# Make SQLite imports optional for Vercel deployment
+try:
+    from src.database.db import get_db_connection, DEFAULT_DB_PATH
+    HAS_SQLITE = True
+except ImportError:
+    # SQLite not available - use Firestore only
+    HAS_SQLITE = False
+    get_db_connection = None
+    DEFAULT_DB_PATH = None
 
 # Conditionally import firestore
 try:

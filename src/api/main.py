@@ -22,15 +22,28 @@ import time
 # Load environment variables from .env file
 load_dotenv()
 
-from src.database import db
-from src.database.db import (
-    get_db_connection,
-    store_operator_action as sqlite_store_operator_action,
-    get_operator_actions as sqlite_get_operator_actions,
-    get_consent_status as sqlite_get_consent_status,
-    store_consent as sqlite_store_consent,
-    revoke_consent as sqlite_revoke_consent
-)
+# Make SQLite imports optional for Vercel deployment (only Firestore is used)
+try:
+    from src.database import db
+    from src.database.db import (
+        get_db_connection,
+        store_operator_action as sqlite_store_operator_action,
+        get_operator_actions as sqlite_get_operator_actions,
+        get_consent_status as sqlite_get_consent_status,
+        store_consent as sqlite_store_consent,
+        revoke_consent as sqlite_revoke_consent
+    )
+    HAS_SQLITE = True
+except ImportError:
+    # SQLite not available - use Firestore only (production deployment)
+    HAS_SQLITE = False
+    db = None
+    get_db_connection = None
+    sqlite_store_operator_action = None
+    sqlite_get_operator_actions = None
+    sqlite_get_consent_status = None
+    sqlite_store_consent = None
+    sqlite_revoke_consent = None
 from src.personas.assignment import get_persona_assignment
 from src.features.signal_detection import get_user_features
 # compute_all_features removed - not needed for production API (features are pre-computed)
@@ -94,6 +107,10 @@ from firebase_admin import firestore
 
 def check_use_firestore():
     """Check if Firestore should be used (dynamic check, not cached)."""
+    # If SQLite is not available (Vercel deployment), always use Firestore
+    if not HAS_SQLITE:
+        return True
+    
     # Force SQLite if explicitly requested (takes precedence over everything)
     if os.getenv('USE_SQLITE', '').lower() == 'true':
         return False

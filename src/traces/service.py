@@ -3,7 +3,16 @@
 import json
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-from src.database.db import get_db_connection
+
+# Make SQLite imports optional for Vercel deployment
+try:
+    from src.database.db import get_db_connection
+    HAS_SQLITE = True
+except ImportError:
+    # SQLite not available - use Firestore only
+    HAS_SQLITE = False
+    get_db_connection = None
+
 from src.utils.logging import get_logger
 
 logger = get_logger("traces")

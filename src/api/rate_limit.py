@@ -9,8 +9,16 @@ from typing import Dict, List, Optional
 from collections import defaultdict
 import os
 
-from src.database import db
-from src.database.db import get_db_connection
+# Make SQLite imports optional for Vercel deployment
+try:
+    from src.database import db
+    from src.database.db import get_db_connection
+    HAS_SQLITE = True
+except ImportError:
+    # SQLite not available - use in-memory storage only
+    HAS_SQLITE = False
+    db = None
+    get_db_connection = None
 
 
 # Rate limit configuration

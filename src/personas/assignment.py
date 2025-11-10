@@ -19,7 +19,15 @@ except ImportError:
     pd = None
     np = None
 
-from src.database import db
+# Make SQLite imports optional for Vercel deployment
+try:
+    from src.database import db
+    HAS_SQLITE = True
+except ImportError:
+    # SQLite not available - use Firestore only
+    HAS_SQLITE = False
+    db = None
+
 from src.features.signal_detection import get_user_features
 
 # Check if using Firestore

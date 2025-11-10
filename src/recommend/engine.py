@@ -10,7 +10,15 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
-from src.database import db
+# Make SQLite imports optional for Vercel deployment
+try:
+    from src.database import db
+    HAS_SQLITE = True
+except ImportError:
+    # SQLite not available - use Firestore only
+    HAS_SQLITE = False
+    db = None
+
 from src.personas.assignment import get_persona_assignment
 from src.features.signal_detection import get_user_features
 from src.recommend.content_catalog import (
