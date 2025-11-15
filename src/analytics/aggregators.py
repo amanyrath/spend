@@ -13,17 +13,18 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import json
 
+# Use centralized database configuration
+from src.database.db_config import USE_FIRESTORE, HAS_SQLITE
+
 # Make SQLite imports optional for Vercel deployment
 try:
     from src.database.db import get_db_connection, DEFAULT_DB_PATH
-    HAS_SQLITE = True
 except ImportError:
     # SQLite not available - use Firestore only
-    HAS_SQLITE = False
     get_db_connection = None
     DEFAULT_DB_PATH = None
 
-# Conditionally import firestore
+# Import Firestore functions
 try:
     from src.database.firestore import get_db as firestore_get_db
     FIRESTORE_AVAILABLE = True

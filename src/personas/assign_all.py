@@ -13,14 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.database import db
 from src.personas.assignment import assign_persona
-
-# Check if using Firestore (emulator or production)
-USE_FIRESTORE = (
-    os.getenv('FIRESTORE_EMULATOR_HOST') is not None or 
-    os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true' or
-    os.getenv('FIREBASE_SERVICE_ACCOUNT') is not None or 
-    os.path.exists('firebase-service-account.json')
-)
+from src.database.db_config import USE_FIRESTORE
 
 if USE_FIRESTORE:
     from src.database.firestore import get_all_users

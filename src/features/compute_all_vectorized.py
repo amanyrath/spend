@@ -22,14 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.database import db
 from src.features.signal_detection import category_contains
-
-# Check if using Firestore
-USE_FIRESTORE = (
-    os.getenv('FIRESTORE_EMULATOR_HOST') is not None or 
-    os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true' or
-    os.getenv('FIREBASE_SERVICE_ACCOUNT') is not None or 
-    os.path.exists('firebase-service-account.json')
-)
+from src.database.db_config import USE_FIRESTORE
 
 
 def load_all_transactions(window_days: int = 180, use_sqlite: bool = False) -> pd.DataFrame:

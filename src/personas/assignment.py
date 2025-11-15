@@ -5,7 +5,6 @@ Personas are assigned in priority order, with the first matching persona winning
 """
 
 import json
-import os
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
@@ -19,24 +18,14 @@ except ImportError:
     pd = None
     np = None
 
-# Make SQLite imports optional for Vercel deployment
+# Use centralized database configuration
+from src.database.db_config import USE_FIRESTORE, HAS_SQLITE
 try:
     from src.database import db
-    HAS_SQLITE = True
 except ImportError:
-    # SQLite not available - use Firestore only
-    HAS_SQLITE = False
     db = None
 
 from src.features.signal_detection import get_user_features
-
-# Check if using Firestore
-USE_FIRESTORE = (
-    os.getenv('FIRESTORE_EMULATOR_HOST') is not None or 
-    os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true' or
-    os.getenv('FIREBASE_SERVICE_ACCOUNT') is not None or 
-    os.path.exists('firebase-service-account.json')
-)
 
 if USE_FIRESTORE:
     from src.database.firestore import store_persona as firestore_store_persona

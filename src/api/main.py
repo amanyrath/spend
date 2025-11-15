@@ -89,6 +89,9 @@ from src.utils.calculators import (
     generate_budget_breakdown
 )
 
+# Import centralized database configuration
+from src.database.db_config import USE_FIRESTORE, should_use_firestore
+
 # Import Firestore functions for deployment or emulator
 # Import firestore module early so auto-detection runs
 from src.database.firestore import (
@@ -105,30 +108,8 @@ from src.database.firestore import (
 )
 from firebase_admin import firestore
 
-def check_use_firestore():
-    """Check if Firestore should be used (dynamic check, not cached)."""
-    # If SQLite is not available (Vercel deployment), always use Firestore
-    if not HAS_SQLITE:
-        return True
-    
-    # Force SQLite if explicitly requested (takes precedence over everything)
-    if os.getenv('USE_SQLITE', '').lower() == 'true':
-        return False
-    
-    # Check environment variables (including auto-detected FIRESTORE_EMULATOR_HOST)
-    has_emulator = os.getenv('FIRESTORE_EMULATOR_HOST') is not None
-    has_emulator_flag = os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true'
-    has_production_creds = os.getenv('FIREBASE_SERVICE_ACCOUNT') is not None
-    has_cred_file = os.path.exists('firebase-service-account.json')
-    
-    if has_emulator or has_emulator_flag or has_production_creds or has_cred_file:
-        # Try to get Firestore client
-        db_client = firestore_get_db()
-        return db_client is not None
-    return False
-
-# Cache initial state
-USE_FIRESTORE = check_use_firestore()
+# For backward compatibility - use centralized check
+check_use_firestore = should_use_firestore
 
 # Create a convenience alias for backward compatibility
 # Don't call firestore_get_db() during import - it will be called lazily when needed

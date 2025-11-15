@@ -12,27 +12,16 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from collections import defaultdict
 import statistics
-import os
 
-# Make SQLite imports optional for Vercel deployment
+# Use centralized database configuration
+from src.database.db_config import USE_FIRESTORE, HAS_SQLITE
 try:
     from src.database import db
-    HAS_SQLITE = True
 except ImportError:
-    # SQLite not available - use Firestore only
-    HAS_SQLITE = False
     db = None
 
 from src.database.firestore import get_user_transactions, get_user_accounts, store_feature as firestore_store_feature, get_user_features as firestore_get_user_features
 from src.utils.category_utils import normalize_category, get_primary_category, category_contains
-
-# Use Firestore if emulator is enabled, service account env var is set, or service account file exists
-USE_FIRESTORE = (
-    os.getenv('FIRESTORE_EMULATOR_HOST') is not None or 
-    os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true' or
-    os.getenv('FIREBASE_SERVICE_ACCOUNT') is not None or 
-    os.path.exists('firebase-service-account.json')
-)
 
 
 class DictRow:

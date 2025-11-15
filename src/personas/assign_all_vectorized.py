@@ -26,14 +26,7 @@ from src.personas.assignment import (
     PERSONA_SAVINGS_BUILDER,
     PERSONA_GENERAL_WELLNESS
 )
-
-# Check if using Firestore
-USE_FIRESTORE = (
-    os.getenv('FIRESTORE_EMULATOR_HOST') is not None or 
-    os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true' or
-    os.getenv('FIREBASE_SERVICE_ACCOUNT') is not None or 
-    os.path.exists('firebase-service-account.json')
-)
+from src.database.db_config import USE_FIRESTORE
 
 
 def load_all_user_features(time_windows: List[str] = None, use_sqlite: bool = False) -> pd.DataFrame:

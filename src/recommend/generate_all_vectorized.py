@@ -22,14 +22,7 @@ from src.database import db
 from src.personas.assign_all_vectorized import load_all_user_features, pivot_features_to_wide
 from src.recommend.content_catalog import get_content_by_persona, get_partner_offers
 from src.recommend.rationale_generator import generate_rationale
-
-# Check if using Firestore
-USE_FIRESTORE = (
-    os.getenv('FIRESTORE_EMULATOR_HOST') is not None or 
-    os.getenv('USE_FIREBASE_EMULATOR', '').lower() == 'true' or
-    os.getenv('FIREBASE_SERVICE_ACCOUNT') is not None or 
-    os.path.exists('firebase-service-account.json')
-)
+from src.database.db_config import USE_FIRESTORE
 
 
 def load_all_personas_and_features(time_windows: List[str] = None, use_sqlite: bool = False) -> pd.DataFrame:
