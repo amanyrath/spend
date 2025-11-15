@@ -233,49 +233,61 @@ def get_operator_actions(
     action_type: Optional[str] = None,
     limit: Optional[int] = None,
     offset: int = 0,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db_path: Optional[str] = None
 ) -> list:
     """Get operator actions from the audit trail.
-    
+
     Args:
         user_id: Filter by user_id (optional)
         action_type: Filter by action_type (optional)
         limit: Maximum number of results (optional)
         offset: Number of results to skip
+        start_date: Start date filter (ISO format, optional)
+        end_date: End date filter (ISO format, optional)
         db_path: Path to SQLite database file. If None, uses default path.
-        
+
     Returns:
         List of operator action records
     """
     conditions = []
     params = []
-    
+
     if user_id:
         conditions.append("user_id = ?")
         params.append(user_id)
-    
+
     if action_type:
         conditions.append("action_type = ?")
         params.append(action_type)
-    
+
+    if start_date:
+        conditions.append("created_at >= ?")
+        params.append(start_date)
+
+    if end_date:
+        conditions.append("created_at <= ?")
+        params.append(end_date)
+
     where_clause = ""
     if conditions:
         where_clause = "WHERE " + " AND ".join(conditions)
-    
+
     query = f"""
         SELECT id, operator_id, user_id, action_type, recommendation_id, reason, created_at
         FROM operator_actions
         {where_clause}
         ORDER BY created_at DESC
     """
-    
+
     if limit:
         query += f" LIMIT ? OFFSET ?"
         params.extend([limit, offset])
     elif offset:
         query += f" OFFSET ?"
         params.append(offset)
-    
+
     rows = fetch_all(query, tuple(params), db_path)
     return [dict(row) for row in rows]
 

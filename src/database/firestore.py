@@ -590,54 +590,64 @@ def get_operator_actions(
     user_id: Optional[str] = None,
     action_type: Optional[str] = None,
     limit: Optional[int] = None,
-    offset: int = 0
+    offset: int = 0,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Get operator actions from the audit trail.
-    
+
     Args:
         user_id: Filter by user_id (required)
         action_type: Filter by action_type (optional)
         limit: Maximum number of results (optional)
         offset: Number of results to skip
-        
+        start_date: Start date filter (ISO format, optional)
+        end_date: End date filter (ISO format, optional)
+
     Returns:
         List of operator action records
     """
     client = get_db()
     if client is None:
         raise RuntimeError("Firebase not initialized. Ensure FIREBASE_SERVICE_ACCOUNT is set or firebase-service-account.json exists.")
-    
+
     if not user_id:
         return []
-    
+
     actions_ref = client.collection('users').document(user_id)\
                         .collection('operator_actions')
-    
+
     if action_type:
         actions_ref = actions_ref.where('action_type', '==', action_type)
-    
+
+    # Apply date filters if provided
+    if start_date:
+        actions_ref = actions_ref.where('created_at', '>=', start_date)
+    if end_date:
+        actions_ref = actions_ref.where('created_at', '<=', end_date)
+
     # Order by created_at descending
     actions_ref = actions_ref.order_by('created_at', direction=firestore.Query.DESCENDING)
-    
+
     # Apply pagination
     if offset > 0:
         # Firestore doesn't support offset directly, need to use start_after
         # For simplicity, we'll fetch all and slice (fine for small datasets)
         pass
-    
+
     actions = []
     for action_doc in actions_ref.stream():
         action_data = action_doc.to_dict()
         action_data['id'] = action_doc.id
         actions.append(action_data)
-    
+
     # Apply offset and limit manually (Firestore limitation)
     if offset > 0:
         actions = actions[offset:]
-    
+
     if limit:
         actions = actions[:limit]
-    
+
     return actions
 
 
