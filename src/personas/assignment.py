@@ -7,17 +7,21 @@ Personas are assigned in priority order, with the first matching persona winning
 import json
 import os
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, TYPE_CHECKING
 
 # Make pandas optional for Vercel deployment
+if TYPE_CHECKING:
+    import pandas as pd
+    import numpy as np
+
 try:
     import pandas as pd
     import numpy as np
     HAS_PANDAS = True
 except ImportError:
     HAS_PANDAS = False
-    pd = None
-    np = None
+    pd = None  # type: ignore
+    np = None  # type: ignore
 
 # Make SQLite imports optional for Vercel deployment
 try:
@@ -388,20 +392,23 @@ def calculate_persona_scores(signals: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def calculate_persona_scores_vectorized(features_df: pd.DataFrame) -> pd.DataFrame:
+def calculate_persona_scores_vectorized(features_df: "pd.DataFrame") -> "pd.DataFrame":
     """Calculate persona scores for all users using vectorized operations.
-    
+
     Args:
         features_df: DataFrame with columns: user_id, time_window, subscriptions,
                     credit_utilization, savings_behavior, income_stability
                     Each signal column contains a dict with signal data
-        
+
     Returns:
         DataFrame with columns: user_id, time_window, persona, primary_persona,
         match_high_utilization, match_variable_income, match_subscription_heavy,
         match_savings_builder, match_general_wellness, criteria_met,
         match_percentages, criteria_details
     """
+    if not HAS_PANDAS:
+        raise ImportError("pandas is required for vectorized operations")
+
     if features_df.empty:
         return pd.DataFrame()
     
