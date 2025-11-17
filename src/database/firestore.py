@@ -120,30 +120,53 @@ def initialize_firebase():
         print("📁 Using credentials from FIREBASE_SERVICE_ACCOUNT environment variable")
     print("=" * 60)
     
-    if os.getenv('FIREBASE_SERVICE_ACCOUNT'):
-        # Vercel: service account is stored as JSON string in environment variable
-        try:
-            service_account_json = json.loads(os.getenv('FIREBASE_SERVICE_ACCOUNT'))
-            cred = credentials.Certificate(service_account_json)
-            print(f"Using Firebase service account from environment: {service_account_json.get('client_email', 'unknown')}")
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid FIREBASE_SERVICE_ACCOUNT JSON: {e}")
-        except Exception as e:
-            raise ValueError(f"Failed to parse FIREBASE_SERVICE_ACCOUNT: {e}")
-    else:
-        # Local: use service account file
-        cred = credentials.Certificate(cred_path)
-        with open(cred_path) as f:
-            sa_data = json.load(f)
-            print(f"Using Firebase service account from file: {sa_data.get('client_email', 'unknown')}")
+    try:
+        if os.getenv('FIREBASE_SERVICE_ACCOUNT'):
+            # Vercel: service account is stored as JSON string in environment variable
+            try:
+                service_account_json = json.loads(os.getenv('FIREBASE_SERVICE_ACCOUNT'))
+                cred = credentials.Certificate(service_account_json)
+                print(f"Using Firebase service account from environment: {service_account_json.get('client_email', 'unknown')}")
+            except json.JSONDecodeError as e:
+                print(f"ERROR: Invalid FIREBASE_SERVICE_ACCOUNT JSON: {e}")
+                print("Firebase will not be available. Check your environment variable.")
+                _initialized = True
+                return
+            except Exception as e:
+                print(f"ERROR: Failed to parse FIREBASE_SERVICE_ACCOUNT: {e}")
+                print("Firebase will not be available. Check your environment variable.")
+                _initialized = True
+                return
+        else:
+            # Local: use service account file
+            try:
+                cred = credentials.Certificate(cred_path)
+                with open(cred_path) as f:
+                    sa_data = json.load(f)
+                    print(f"Using Firebase service account from file: {sa_data.get('client_email', 'unknown')}")
+            except Exception as e:
+                print(f"ERROR: Failed to load service account file '{cred_path}': {e}")
+                print("Firebase will not be available.")
+                _initialized = True
+                return
 
-    # Only initialize if not already initialized
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(cred)
+        # Only initialize if not already initialized
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(cred)
+            _initialized = True
+            print("✓ Firebase initialized successfully")
+    except Exception as e:
+        print(f"ERROR: Failed to initialize Firebase: {e}")
+        print("Firebase will not be available. The API will continue without Firebase.")
         _initialized = True
 
-# Initialize on import (will gracefully skip if no credentials)
-initialize_firebase()
+# Initialize on import (will gracefully skip if no credentials or on error)
+try:
+    initialize_firebase()
+except Exception as e:
+    print(f"WARNING: Firebase initialization failed on module import: {e}")
+    print("The API will start without Firebase. Ensure FIREBASE_SERVICE_ACCOUNT is properly configured.")
+    _initialized = True
 
 # Only create db client if Firebase was initialized and credentials exist
 _db = None
@@ -169,8 +192,13 @@ def get_db():
         has_file = os.path.exists(cred_path)
         
         if use_emulator or has_env_var or has_file:
-            initialize_firebase()
-            _db = firestore.client()
+            try:
+                initialize_firebase()
+                _db = firestore.client()
+            except Exception as e:
+                print(f"ERROR: Failed to get Firestore client: {e}")
+                print("Firestore will not be available.")
+                _db = None
         else:
             # Return None if no Firebase credentials (will use SQLite instead)
             _db = None

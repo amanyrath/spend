@@ -123,12 +123,21 @@ def check_use_firestore():
     
     if has_emulator or has_emulator_flag or has_production_creds or has_cred_file:
         # Try to get Firestore client
-        db_client = firestore_get_db()
-        return db_client is not None
+        try:
+            db_client = firestore_get_db()
+            return db_client is not None
+        except Exception as e:
+            print(f"WARNING: Failed to get Firestore client during initialization check: {e}")
+            return False
     return False
 
-# Cache initial state
-USE_FIRESTORE = check_use_firestore()
+# Cache initial state - wrap in try-except to prevent crashes during import
+try:
+    USE_FIRESTORE = check_use_firestore()
+except Exception as e:
+    print(f"WARNING: Failed to check Firestore availability: {e}")
+    print("Defaulting to USE_FIRESTORE=False. The API will continue.")
+    USE_FIRESTORE = False
 
 # Create a convenience alias for backward compatibility
 # Don't call firestore_get_db() during import - it will be called lazily when needed
@@ -176,6 +185,39 @@ app.add_middleware(
 )
 
 
+# Startup event
+@app.on_event("startup")
+async def startup_event():
+    """Log startup information and configuration."""
+    print("=" * 60)
+    print("🚀 SpendSense API Starting Up")
+    print("=" * 60)
+    print(f"Environment: {'Vercel' if os.getenv('VERCEL') else 'Local'}")
+    print(f"Using Firestore: {USE_FIRESTORE}")
+    print(f"SQLite Available: {HAS_SQLITE}")
+
+    # Check Firebase initialization
+    try:
+        db_client = firestore_get_db()
+        if db_client:
+            print("✓ Firebase/Firestore: Connected")
+        else:
+            print("⚠ Firebase/Firestore: Not initialized (no credentials)")
+    except Exception as e:
+        print(f"✗ Firebase/Firestore: Error - {e}")
+
+    # Check OpenAI
+    from src.chat.service import client as openai_client
+    if openai_client:
+        print("✓ OpenAI: Configured")
+    else:
+        print("⚠ OpenAI: Not configured (OPENAI_API_KEY missing)")
+
+    print("=" * 60)
+    print("✓ API Ready")
+    print("=" * 60)
+
+
 # Request ID middleware
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
@@ -183,7 +225,7 @@ async def add_request_id(request: Request, call_next):
     import uuid
     request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
     request.state.request_id = request_id
-    
+
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     return response
@@ -432,9 +474,10 @@ def health_check():
         try:
             if use_firestore:
                 # Test Firestore connection
-                if firestore_db:
+                db_client = firestore_get_db()
+                if db_client:
                     # Try to read a collection
-                    list(firestore_db.collection('users').limit(1).stream())
+                    list(db_client.collection('users').limit(1).stream())
                     db_status = "connected"
                 else:
                     db_status = "disconnected"
@@ -458,7 +501,8 @@ def health_check():
                 "error": db_error
             },
             "firestore_emulator_host": os.getenv('FIRESTORE_EMULATOR_HOST'),
-            "firestore_db_available": firestore_db is not None if use_firestore else None
+            "firestore_db_available": firestore_get_db() is not None if use_firestore else None,
+            "environment": "vercel" if os.getenv('VERCEL') else "local"
         }
         
         status_code = 200 if db_status == "connected" else 503
