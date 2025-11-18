@@ -388,7 +388,7 @@ def calculate_persona_scores(signals: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def calculate_persona_scores_vectorized(features_df: pd.DataFrame) -> pd.DataFrame:
+def calculate_persona_scores_vectorized(features_df: "pd.DataFrame") -> "pd.DataFrame":
     """Calculate persona scores for all users using vectorized operations.
     
     Args:
