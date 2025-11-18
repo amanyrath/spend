@@ -4,6 +4,8 @@ This module implements hierarchical persona assignment based on behavioral signa
 Personas are assigned in priority order, with the first matching persona winning.
 """
 
+from __future__ import annotations
+
 import json
 import os
 from datetime import datetime
