@@ -1,24 +1,13 @@
 """Rate limiting infrastructure for SpendSense API.
 
-This module provides rate limiting functionality with support for multiple
-storage backends (in-memory, database, Redis).
+This module provides in-memory rate limiting for serverless deployments.
+For production cross-instance rate limiting, consider using Redis or similar.
 """
 
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from collections import defaultdict
 import os
-
-# Make SQLite imports optional for Vercel deployment
-try:
-    from src.database import db
-    from src.database.db import get_db_connection
-    HAS_SQLITE = True
-except ImportError:
-    # SQLite not available - use in-memory storage only
-    HAS_SQLITE = False
-    db = None
-    get_db_connection = None
 
 
 # Rate limit configuration
@@ -34,29 +23,14 @@ RATE_LIMITS = {
 }
 
 
-class RateLimitStorage:
-    """Abstract interface for rate limit storage."""
-    
-    def get_count(self, user_id: str, endpoint: str, window_start: datetime) -> int:
-        """Get current count for user/endpoint within window."""
-        raise NotImplementedError
-    
-    def increment(self, user_id: str, endpoint: str, window_start: datetime) -> None:
-        """Increment count for user/endpoint."""
-        raise NotImplementedError
-    
-    def cleanup(self, older_than: datetime) -> None:
-        """Clean up old entries."""
-        raise NotImplementedError
+class InMemoryRateLimitStorage:
+    """In-memory rate limit storage for serverless deployments."""
 
-
-class InMemoryRateLimitStorage(RateLimitStorage):
-    """In-memory rate limit storage (for development)."""
-    
     def __init__(self):
         self.store: Dict[str, List[datetime]] = defaultdict(list)
-    
+
     def get_count(self, user_id: str, endpoint: str, window_start: datetime) -> int:
+        """Get current count for user/endpoint within window."""
         key = f"{user_id}:{endpoint}"
         now = datetime.now()
         # Clean old entries
@@ -65,12 +39,14 @@ class InMemoryRateLimitStorage(RateLimitStorage):
             if (now - ts).total_seconds() < RATE_LIMIT_WINDOW
         ]
         return len(self.store[key])
-    
+
     def increment(self, user_id: str, endpoint: str, window_start: datetime) -> None:
+        """Increment count for user/endpoint."""
         key = f"{user_id}:{endpoint}"
         self.store[key].append(datetime.now())
-    
+
     def cleanup(self, older_than: datetime) -> None:
+        """Clean up old entries."""
         now = datetime.now()
         for key in list(self.store.keys()):
             self.store[key] = [
@@ -79,75 +55,8 @@ class InMemoryRateLimitStorage(RateLimitStorage):
             ]
 
 
-class DatabaseRateLimitStorage(RateLimitStorage):
-    """Database-backed rate limit storage."""
-    
-    def __init__(self):
-        self._ensure_table()
-    
-    def _ensure_table(self):
-        """Ensure rate_limits table exists."""
-        with get_db_connection() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS rate_limits (
-                    user_id TEXT NOT NULL,
-                    endpoint TEXT NOT NULL,
-                    count INTEGER DEFAULT 1,
-                    window_start TEXT NOT NULL,
-                    expires_at TEXT NOT NULL,
-                    PRIMARY KEY (user_id, endpoint, window_start)
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_rate_limits_user_endpoint 
-                ON rate_limits(user_id, endpoint)
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_rate_limits_expires_at 
-                ON rate_limits(expires_at)
-            """)
-    
-    def get_count(self, user_id: str, endpoint: str, window_start: datetime) -> int:
-        window_start_str = window_start.isoformat()
-        expires_at_str = (window_start + timedelta(seconds=RATE_LIMIT_WINDOW)).isoformat()
-        
-        query = """
-            SELECT SUM(count) as total
-            FROM rate_limits
-            WHERE user_id = ? AND endpoint = ? 
-            AND window_start >= ? AND expires_at > ?
-        """
-        
-        row = db.fetch_one(query, (user_id, endpoint, window_start_str, datetime.now().isoformat()))
-        return row["total"] if row and row["total"] else 0
-    
-    def increment(self, user_id: str, endpoint: str, window_start: datetime) -> None:
-        window_start_str = window_start.isoformat()
-        expires_at_str = (window_start + timedelta(seconds=RATE_LIMIT_WINDOW)).isoformat()
-        
-        query = """
-            INSERT INTO rate_limits (user_id, endpoint, count, window_start, expires_at)
-            VALUES (?, ?, 1, ?, ?)
-            ON CONFLICT(user_id, endpoint, window_start) DO UPDATE SET count = count + 1
-        """
-        
-        with get_db_connection() as conn:
-            conn.execute(query, (user_id, endpoint, window_start_str, expires_at_str))
-    
-    def cleanup(self, older_than: datetime) -> None:
-        query = "DELETE FROM rate_limits WHERE expires_at < ?"
-        with get_db_connection() as conn:
-            conn.execute(query, (older_than.isoformat(),))
-
-
-# Select storage backend based on configuration
-RATE_LIMIT_STORAGE_TYPE = os.getenv("RATE_LIMIT_STORAGE", "database").lower()
-
-# Use in-memory storage if SQLite is not available or memory is explicitly requested
-if RATE_LIMIT_STORAGE_TYPE == "memory" or not HAS_SQLITE:
-    rate_limit_storage = InMemoryRateLimitStorage()
-else:
-    rate_limit_storage = DatabaseRateLimitStorage()
+# Use in-memory storage for serverless deployment
+rate_limit_storage = InMemoryRateLimitStorage()
 
 
 def check_rate_limit(user_id: str, endpoint: str = "default") -> tuple[bool, Optional[int]]:
