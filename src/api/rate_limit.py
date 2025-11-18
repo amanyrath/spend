@@ -143,7 +143,8 @@ class DatabaseRateLimitStorage(RateLimitStorage):
 # Select storage backend based on configuration
 RATE_LIMIT_STORAGE_TYPE = os.getenv("RATE_LIMIT_STORAGE", "database").lower()
 
-if RATE_LIMIT_STORAGE_TYPE == "memory":
+# Use in-memory storage if SQLite is not available or memory is explicitly requested
+if RATE_LIMIT_STORAGE_TYPE == "memory" or not HAS_SQLITE:
     rate_limit_storage = InMemoryRateLimitStorage()
 else:
     rate_limit_storage = DatabaseRateLimitStorage()
